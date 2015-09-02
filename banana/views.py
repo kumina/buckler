@@ -2,6 +2,7 @@ import logging
 import requests
 import datetime
 import urlparse
+import fnmatch
 
 import json
 
@@ -56,6 +57,7 @@ def log(method, path, type, headers, s):
         print >> logfile, "===================================="
         print >> logfile
 
+from django.core.urlresolvers import reverse
 
 class LoginView(View):
     def get(self, request, *args, **kwargs):
@@ -70,6 +72,20 @@ class LoginView(View):
             return redirect('/')
         else:
             return render(request, "banana/login.html", {'error':'Invalid username or password'})
+
+class InjectJSView(View):
+    def get(self, request, *args, **kwargs):
+        username, config = get_session(request)
+        js = """
+            function inject() {{
+            console.log("Start injection");
+            console.log($);
+            $("div.navbar-collapse").append('<ul class="nav navbar-nav pull-right"><li><a href="{logout}">Logout {username}</a></li></ul>');
+            }}
+            setTimeout(inject, 3000);
+        """.format(username=username, logout=reverse("logout"))
+        return HttpResponse(js, status=200,
+                content_type="application/javascript")
 
 class LogoutView(View):
     def get(self, request, *args, **kwargs):
@@ -102,7 +118,33 @@ class BananaView(View):
                 if index not in config['indexes']:
                     raise Http404("Invalid access or request")
 
+        def check_mget_body():
+            data = json.loads(body)
+            for doc in data.get('docs', []):
+                index = doc.get('_index')
+                if index:
+                    if index == ".kibana-" + username:
+                        continue
+                    for allowed_index in config['indexes']:
+                        if fnmatch.fnmatch(index, allowed_index):
+                            break
+                    else:
+                        raise Http404("Access to index denied: {0}".format(index))
+
+        def check_msearch_body():
+            for line in body.splitlines():
+                data = json.loads(line)
+                if 'index' in data:
+                    index = data.get('index')
+                    for allowed_index in config['indexes']:
+                        if fnmatch.fnmatch(index, allowed_index):
+                            break
+                    else:
+                        raise Http404("Access to index denied: {0}".format(index))
+
+
         if parts[0].lower() == 'elasticsearch' and len(parts) > 1:
+            # /elasticsearch/ and /elasticsearch/_nodes
             if parts[1] in ('', '_nodes'):
                 pass # allowed
             # /elasticsearch/.kibana-someuser
@@ -118,16 +160,19 @@ class BananaView(View):
                 url = "/".join(parts)
             # /elasticsearch/_mget
             elif parts[1] == '_mget':
-                pass
+                check_mget_body()
+
             # /elasticsearch/index/_mget
             elif len(parts) > 2 and parts[2] == '_mget':
                 check_explicit_index(parts[1])
+                check_mget_body()
             # /elasticsearch/_msearch
             elif parts[1] == '_msearch':
-                pass
+                check_msearch_body()
             # /elasticsearch/index/_msearch
             elif len(parts) > 2 and parts[2] == '_msearch':
                 check_explicit_index(parts[1])
+                check_msearch_body()
             # /elasticsearch/index/_somemethod_or_type
             else:
                 indexes = parts[1].split(",")
@@ -162,6 +207,8 @@ class BananaView(View):
             data_decode['kibana_index'] = ".kibana-{0}".format(username)
             data = json.dumps(data_decode)
 
+        if url == '':
+            data = data.replace("</body>", '<script src="/inject.js"></script></body>')
 
 
         return HttpResponse(data, status=res.status_code,
