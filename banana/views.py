@@ -80,7 +80,7 @@ class InjectJSView(View):
             function inject() {{
             console.log("Start injection");
             console.log($);
-            $("div.navbar-collapse").append('<ul class="nav navbar-nav pull-right"><li><a href="{logout}">Logout {username}</a></li></ul>');
+            $("div.navbar-collapse").append('<ul class="nav navbar-nav pull-right"><li><a href="{logout}"><i class="fa fa-sign-out"></i> Logout {username}</a></li></ul>');
             }}
             setTimeout(inject, 3000);
         """.format(username=username, logout=reverse("logout"))
