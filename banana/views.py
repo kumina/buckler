@@ -3,9 +3,12 @@ import requests
 import datetime
 import urlparse
 
+import json
+
 from django.http import HttpResponse
 from django.views.generic import View
 from django.shortcuts import render, redirect
+from django.http import Http404
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +29,17 @@ TODO
 config = { 'ivo': {'password':'1v0',
                    'indexes': ('logstash-ivo-*',)},
            'test': {'password': 't3st',
-                    'indexes': ('accounts', )}
+                    'indexes': ('accounts', )},
+           'superuser': {'password': 'geheim',
+                         'indexes':('accounts', 'logstash-*', 'logstash-ivo-*')}
          }
+
+def get_session(request):
+    username = request.session.get('username')
+
+    if username:
+        return username, config.get(username)
+    return None, None
 
 def log(method, path, type, headers, s):
     ## ignore anything that looks like a resource, for now.
@@ -39,12 +51,11 @@ def log(method, path, type, headers, s):
 
     with open("logfile", "a") as logfile:
         print >> logfile, "{0} {1} {2} {3}".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), method, type, path)
-        print >> logfile, str(headers)
+        # print >> logfile, str(headers)
         print >> logfile, s
         print >> logfile, "===================================="
         print >> logfile
 
-allowed_indexes = ('logstash-ivo-',)
 
 class LoginView(View):
     def get(self, request, *args, **kwargs):
@@ -67,52 +78,104 @@ class LogoutView(View):
 
 
 class BananaView(View):
-    forward_url = "http://kibana:5601"
+    KIBANA_UPSTREAM = "http://kibana:5601"
+    ES_UPSTREAM = "http://es:9200"
 
     """
     TODO:
     """
 
-    def get_full_url(self, url):
+    def get_full_url(self, url, request):
         """
-        Constructs the full URL to be requested.
+            Construct the full (upstream) url
         """
-        if url.startswith("/elasticsearch/.kibana"):
-            url = "/elasticsearch/.kibana-ivo" + url[22:]
-        elif url.startswith("/elasticsearch/logstash-"):
-            url = "/elasticsearch/logstash-ivo-" + url[24:]
+        upstream = self.KIBANA_UPSTREAM
+        username, config = get_session(self.request)
+
+        body = request.body
+
+        parts = url.split('/')
+
+        def check_explicit_index(part):
+            indexes = part.split(",")
+            for index in indexes:
+                if index not in config['indexes']:
+                    raise Http404("Invalid access or request")
+
+        if parts[0].lower() == 'elasticsearch' and len(parts) > 1:
+            if parts[1] in ('', '_nodes'):
+                pass # allowed
+            # /elasticsearch/.kibana-someuser
+            elif parts[1].startswith(".kibana"):
+                # bypass kibana, go directly to ES since kibana will not allow
+                # us to access any other ".kibana" index than the configured one
+                upstream = self.ES_UPSTREAM
+                url = url.split('/', 1)[1]
+            # /elasticsearch/_all or /elasticsearch/_query
+            elif parts[1] in ('_all', '_query'):
+                ## include .kibana-<username> ?
+                parts[1] = ",".join(config['indexes']) + "/" + parts[1]
+                url = "/".join(parts)
+            # /elasticsearch/_mget
+            elif parts[1] == '_mget':
+                pass
+            # /elasticsearch/index/_mget
+            elif len(parts) > 2 and parts[2] == '_mget':
+                check_explicit_index(parts[1])
+            # /elasticsearch/_msearch
+            elif parts[1] == '_msearch':
+                pass
+            # /elasticsearch/index/_msearch
+            elif len(parts) > 2 and parts[2] == '_msearch':
+                check_explicit_index(parts[1])
+            # /elasticsearch/index/_somemethod_or_type
+            else:
+                indexes = parts[1].split(",")
+                for index in indexes:
+                    if index not in config['indexes']:
+                        raise Http404("Invalid access or request")
 
         param_str = self.request.GET.urlencode()
-        request_url = u'%s/%s' % (self.forward_url, url)
+        request_url = u'%s/%s' % (upstream, url)
         request_url += '?%s' % param_str if param_str else ''
+        print "RESULT", request_url
         return request_url
 
     def dispatch(self, *args, **kwargs):
-        if not self.request.session.get('username'):
+        if not get_session(self.request)[0]:
             return redirect('login')
 
         return super(BananaView, self).dispatch(*args, **kwargs)
 
     def get(self, request, url, *args, **kwargs):
-        request_url = self.get_full_url(url)
+        username, config = get_session(request)
+
+        request_url = self.get_full_url(url, request)
         log("GET", request_url, "REQUEST", request.META, request.body)
         res = requests.get(request_url)
         log("GET", request_url, "RESPONSE", res.headers, res.content)
 
-        return HttpResponse(res.content, status=res.status_code,
+        data = res.content
+
+        if url == "config":
+            data_decode = json.loads(data)
+            data_decode['kibana_index'] = ".kibana-{0}".format(username)
+            data = json.dumps(data_decode)
+
+
+
+        return HttpResponse(data, status=res.status_code,
                 content_type=res.headers['content-type'])
 
     def post(self, request, url, *args, **kwargs):
-        request_url = self.get_full_url(url)
+        # import pdb; pdb.set_trace()
+
+        username, config = get_session(request)
+
+        request_url = self.get_full_url(url, request)
         log("POST", request_url, "REQUEST", request.META, request.body)
 
-        body = request.body
-        # data = json.loads(body)
-        if '_msearch' in request_url:
-            # import pdb; pdb.set_trace()
-            body = body.replace("logstash-", "logstash-ivo-")
-            
-        res = requests.post(request_url, data=body)
+        res = requests.post(request_url, data=request.body)
         log("POST", request_url, "RESPONSE", res.headers, res.content)
         return HttpResponse(res.content, status=res.status_code,
                 content_type=res.headers['content-type'])
@@ -123,7 +186,7 @@ class BananaView(View):
         return self.get(request, url, *args, **kwargs)
 
     def delete(self, request, url, *args, **kwargs):
-        request_url = self.get_full_url(url)
+        request_url = self.get_full_url(url, request)
         log("DELETE", request_url, "REQUEST", request.META, request.body)
 
         res = requests.delete(request_url, data=request.body)
@@ -132,7 +195,7 @@ class BananaView(View):
                 content_type=res.headers['content-type'])
 
     def put(self, request, url, *args, **kwargs):
-        request_url = self.get_full_url(url)
+        request_url = self.get_full_url(url, request)
         log("PUT", request_url, "PUT", request.META, request.body)
 
         res = requests.put(request_url, data=request.body)
