@@ -11,35 +11,16 @@ from django.views.generic import View
 from django.shortcuts import render, redirect
 from django.http import Http404
 
+from django.conf import settings
+
 logger = logging.getLogger(__name__)
 
-"""
-POST called! http://es:9200/_msearch?ignore_unavailable=true&preference=1440599351552&timeout=0 {"index":"logstash-*","ignore_unavailable":true}
-{"size":500,"sort":[{"@timestamp":{"order":"desc","unmapped_type":"boolean"}}],"query":{"filtered":{"query":{"query_string":{"analyze_wildcard":true,"query":"GET"}},"filter":{"bool":{"must":[{"range":{"@timestamp":{"gte":1420066800000,"lte":1451602799999}}}],"must_not":[]}}}},"highlight":{"pre_tags":["@kibana-highlighted-field@"],"post_tags":["@/kibana-highlighted-field@"],"fields":{"*":{}},"fragment_size":2147483647},"aggs":{"2":{"date_histogram":{"field":"@timestamp","interval":"1w","pre_zone":"+02:00","pre_zone_adjust_large_interval":true,"min_doc_count":0,"extended_bounds":{"min":1420066800000,"max":1451602799999}}}},"fields":["*","_source"],"script_fields":{},"fielddata_fields":["@timestamp"]}
-
-[26/Aug/2015 14:29:12] "POST /_msearch?timeout=0&ignore_unavailable=true&preference=1440599351552 HTTP/1.1" 200 631675
-
-"""
-
-"""
-TODO
-
-
-"""
-
-config = { 'ivo': {'password':'1v0',
-                   'indexes': ('logstash-ivo-*',)},
-           'test': {'password': 't3st',
-                    'indexes': ('accounts', )},
-           'superuser': {'password': 'geheim',
-                         'indexes':('accounts', 'logstash-*', 'logstash-ivo-*')}
-         }
 
 def get_session(request):
     username = request.session.get('username')
 
     if username:
-        return username, config.get(username)
+        return username, settings.CONFIG.get(username)
     return None, None
 
 def log(method, path, type, headers, s):
@@ -67,7 +48,7 @@ class LoginView(View):
         username = request.POST.get('username')
         password = request.POST.get('password')
 
-        if username in config and config[username]['password'] == password:
+        if username in settings.CONFIG and settings.CONFIG[username]['password'] == password:
             request.session['username'] = username
             return redirect('/')
         else:
@@ -80,7 +61,7 @@ class InjectJSView(View):
             function inject() {{
             console.log("Start injection");
             console.log($);
-            $("div.navbar-collapse").append('<ul class="nav navbar-nav pull-right"><li><a href="{logout}"><i class="fa fa-sign-out"></i> Logout {username}</a></li></ul>');
+            $("div.navbar-collapse").append('<ul class="nav navbar-nav"><li><a href="{logout}"><i class="fa fa-sign-out"></i> Logout {username}</a></li></ul>');
             }}
             setTimeout(inject, 3000);
         """.format(username=username, logout=reverse("logout"))
@@ -94,18 +75,12 @@ class LogoutView(View):
 
 
 class BananaView(View):
-    KIBANA_UPSTREAM = "http://kibana:5601"
-    ES_UPSTREAM = "http://es:9200"
-
-    """
-    TODO:
-    """
 
     def get_full_url(self, url, request):
         """
             Construct the full (upstream) url
         """
-        upstream = self.KIBANA_UPSTREAM
+        upstream = settings.KIBANA_UPSTREAM
         username, config = get_session(self.request)
 
         body = request.body
@@ -115,6 +90,8 @@ class BananaView(View):
         def check_explicit_index(part):
             indexes = part.split(",")
             for index in indexes:
+                if index == ".kibana-" + username:
+                    continue
                 if index not in config['indexes']:
                     raise Http404("Invalid access or request")
 
@@ -147,11 +124,14 @@ class BananaView(View):
             # /elasticsearch/ and /elasticsearch/_nodes
             if parts[1] in ('', '_nodes'):
                 pass # allowed
+            # /elasticsearch/_cluster/health/.kibana-<user>
+            elif parts[1] == '_cluster':
+                check_explicit_index(parts[-1])
             # /elasticsearch/.kibana-someuser
             elif parts[1].startswith(".kibana"):
                 # bypass kibana, go directly to ES since kibana will not allow
                 # us to access any other ".kibana" index than the configured one
-                upstream = self.ES_UPSTREAM
+                upstream = settings.ES_UPSTREAM
                 url = url.split('/', 1)[1]
             # /elasticsearch/_all or /elasticsearch/_query
             elif parts[1] in ('_all', '_query'):
@@ -196,6 +176,7 @@ class BananaView(View):
         username, config = get_session(request)
 
         request_url = self.get_full_url(url, request)
+
         log("GET", request_url, "REQUEST", request.META, request.body)
         res = requests.get(request_url)
         log("GET", request_url, "RESPONSE", res.headers, res.content)
@@ -207,7 +188,7 @@ class BananaView(View):
             data_decode['kibana_index'] = ".kibana-{0}".format(username)
             data = json.dumps(data_decode)
 
-        if url == '':
+        if url == '': # / requested: inject javascript
             data = data.replace("</body>", '<script src="/inject.js"></script></body>')
 
 
