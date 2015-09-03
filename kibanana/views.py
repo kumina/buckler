@@ -1,7 +1,4 @@
-import logging
 import requests
-import datetime
-import urlparse
 import fnmatch
 
 import json
@@ -10,10 +7,9 @@ from django.http import HttpResponse
 from django.views.generic import View
 from django.shortcuts import render, redirect
 from django.http import Http404
+from django.core.urlresolvers import reverse
 
 from django.conf import settings
-
-logger = logging.getLogger(__name__)
 
 
 def get_session(request):
@@ -23,22 +19,7 @@ def get_session(request):
         return username, settings.CONFIG.get(username)
     return None, None
 
-def log(method, path, type, headers, s):
-    ## ignore anything that looks like a resource, for now.
 
-    raw_path = urlparse.urlparse(path).path
-    ext = raw_path.rsplit(".", 1)[-1]
-    if ext in ('css', 'gif', 'js', 'ico', 'png', 'jpg', 'woff'):
-        return
-
-    with open("logfile", "a") as logfile:
-        print >> logfile, "{0} {1} {2} {3}".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), method, type, path)
-        # print >> logfile, str(headers)
-        print >> logfile, s
-        print >> logfile, "===================================="
-        print >> logfile
-
-from django.core.urlresolvers import reverse
 
 class LoginView(View):
     def get(self, request, *args, **kwargs):
@@ -177,9 +158,7 @@ class BananaView(View):
 
         request_url = self.get_full_url(url, request)
 
-        log("GET", request_url, "REQUEST", request.META, request.body)
         res = requests.get(request_url)
-        log("GET", request_url, "RESPONSE", res.headers, res.content)
 
         data = res.content
 
@@ -201,10 +180,8 @@ class BananaView(View):
         username, config = get_session(request)
 
         request_url = self.get_full_url(url, request)
-        log("POST", request_url, "REQUEST", request.META, request.body)
 
         res = requests.post(request_url, data=request.body)
-        log("POST", request_url, "RESPONSE", res.headers, res.content)
         return HttpResponse(res.content, status=res.status_code,
                 content_type=res.headers['content-type'])
 
@@ -215,19 +192,15 @@ class BananaView(View):
 
     def delete(self, request, url, *args, **kwargs):
         request_url = self.get_full_url(url, request)
-        log("DELETE", request_url, "REQUEST", request.META, request.body)
 
         res = requests.delete(request_url, data=request.body)
-        log("DELETE", request_url, "RESPONSE", res.headers, res.content)
         return HttpResponse(res.content, status=res.status_code,
                 content_type=res.headers['content-type'])
 
     def put(self, request, url, *args, **kwargs):
         request_url = self.get_full_url(url, request)
-        log("PUT", request_url, "PUT", request.META, request.body)
 
         res = requests.put(request_url, data=request.body)
-        log("PUT", request_url, "RESPONSE", res.headers, res.content)
         return HttpResponse(res.content, status=res.status_code,
                 content_type=res.headers['content-type'])
 
