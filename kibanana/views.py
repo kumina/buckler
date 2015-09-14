@@ -23,7 +23,7 @@ def get_session(request):
 
 class LoginView(View):
     def get(self, request, *args, **kwargs):
-        return render(request, "banana/login.html")
+        return render(request, "kibanana/login.html")
 
     def post(self, request, *args, **kwargs):
         username = request.POST.get('username')
@@ -33,7 +33,7 @@ class LoginView(View):
             request.session['username'] = username
             return redirect('/')
         else:
-            return render(request, "banana/login.html", {'error':'Invalid username or password'})
+            return render(request, "kibanana/login.html", {'error':'Invalid username or password'})
 
 class InjectJSView(View):
     def get(self, request, *args, **kwargs):
