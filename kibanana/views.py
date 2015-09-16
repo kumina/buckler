@@ -69,12 +69,16 @@ class BananaView(View):
         parts = url.split('/')
 
         def check_explicit_index(part):
+            """ If there's an index in 'part' where the user does not have
+                access to, raise 404 """
+
             indexes = part.split(",")
             for index in indexes:
                 if index == ".kibana-" + username:
                     continue
-                if index not in config['indexes']:
-                    raise Http404("Invalid access or request")
+                for allowed_index in config['indexes']:
+                    if not fnmatch.fnmatch(index, allowed_index):
+                        raise Http404("Access to index denied: {0}".format(index))
 
         def check_mget_body():
             data = json.loads(body)
@@ -136,10 +140,7 @@ class BananaView(View):
                 check_msearch_body()
             # /elasticsearch/index/_somemethod_or_type
             else:
-                indexes = parts[1].split(",")
-                for index in indexes:
-                    if index not in config['indexes']:
-                        raise Http404("Invalid access or request")
+                check_explicit_index(parts[1])
 
         param_str = self.request.GET.urlencode()
         request_url = u'%s/%s' % (upstream, url)
