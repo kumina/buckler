@@ -94,15 +94,19 @@ class BananaView(View):
                         raise Http404("Access to index denied: {0}".format(index))
 
         def check_msearch_body():
+            # Not very efficient - possibly multiple lines containing
+            # (possibly) multiple indexes (e.g. for an entire year or
+            # longer) match against multiple allowed_index patterns
             for line in body.splitlines():
                 data = json.loads(line)
                 if 'index' in data:
-                    index = data.get('index')
-                    for allowed_index in config['indexes']:
-                        if fnmatch.fnmatch(index, allowed_index):
-                            break
-                    else:
-                        raise Http404("Access to index denied: {0}".format(index))
+                    indexes = data.get('index')
+                    if not isinstance(indexes, list):
+                        indexes = [indexes]
+                    for index in indexes:
+                        for allowed_index in config['indexes']:
+                            if not fnmatch.fnmatch(index, allowed_index):
+                                raise Http404("Access to index denied: {0}".format(index))
 
 
         if parts[0].lower() == 'elasticsearch' and len(parts) > 1:
