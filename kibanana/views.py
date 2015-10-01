@@ -71,29 +71,32 @@ class BananaView(View):
 
         parts = url.split('/')
 
+        def index_allowed(index):
+            """ Verify if access to the index is allowed by
+                any of the config indexes """
+            if index == ".kibana-" + username:
+                return True
+
+            for allowed_index in config['indexes']:
+                if fnmatch.fnmatch(index, allowed_index):
+                    return True
+            return False
+
         def check_explicit_index(part):
             """ If there's an index in 'part' where the user does not have
                 access to, raise 404 """
 
             indexes = part.split(",")
             for index in indexes:
-                if index == ".kibana-" + username:
-                    continue
-                for allowed_index in config['indexes']:
-                    if not fnmatch.fnmatch(index, allowed_index):
-                        raise Http404("Access to index denied: {0}".format(index))
+                if not index_allowed(index):
+                    raise Http404("Access to index denied: {0}".format(index))
 
         def check_mget_body():
             data = json.loads(body)
             for doc in data.get('docs', []):
                 index = doc.get('_index')
                 if index:
-                    if index == ".kibana-" + username:
-                        continue
-                    for allowed_index in config['indexes']:
-                        if fnmatch.fnmatch(index, allowed_index):
-                            break
-                    else:
+                    if not index_allowed(index):
                         raise Http404("Access to index denied: {0}".format(index))
 
         def check_msearch_body():
@@ -107,9 +110,8 @@ class BananaView(View):
                     if not isinstance(indexes, list):
                         indexes = [indexes]
                     for index in indexes:
-                        for allowed_index in config['indexes']:
-                            if not fnmatch.fnmatch(index, allowed_index):
-                                raise Http404("Access to index denied: {0}".format(index))
+                        if not index_allowed(index):
+                            raise Http404("Access to index denied: {0}".format(index))
 
 
         if parts[0].lower() == 'elasticsearch' and len(parts) > 1:
