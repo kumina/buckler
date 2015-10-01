@@ -39,12 +39,15 @@ class InjectJSView(View):
     def get(self, request, *args, **kwargs):
         username, config = get_session(request)
         js = """
-            function inject() {{
-            console.log("Start injection");
-            console.log($);
-            $("div.navbar-collapse").append('<ul class="nav navbar-nav"><li><a href="{logout}"><i class="fa fa-sign-out"></i> Logout {username}</a></li></ul>');
+            function poll_jquery_and_node() {{
+                if(typeof $ !== "undefined" && $("div.navbar-collapse").length > 0) {{
+                    $("div.navbar-collapse").append('<ul class="nav navbar-nav"><li><a href="{logout}"><i class="fa fa-sign-out"></i> Logout {username}</a></li></ul>');
+                }}
+                else {{
+                    setTimeout(poll_jquery_and_node, 3000);
+                }}
             }}
-            setTimeout(inject, 3000);
+            poll_jquery_and_node();
         """.format(username=username, logout=reverse("logout"))
         return HttpResponse(js, status=200,
                 content_type="application/javascript")
