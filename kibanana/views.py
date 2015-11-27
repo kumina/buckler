@@ -49,21 +49,11 @@ class LoginView(View):
 class InjectJSView(View):
     def get(self, request, *args, **kwargs):
         username, config = get_session(request)
-        js = """
-function poll_jquery_and_node() {{
-    if(typeof $ !== "undefined" && $("div.navbar-collapse").length > 0) {{
-        $("div.navbar-collapse").append('<ul class="nav navbar-nav">' +
-          '<li><a href="{logout}"><i class="fa fa-sign-out">' +
-          '</i> Logout {username}</a></li></ul>');
-    }}
-    else {{
-        setTimeout(poll_jquery_and_node, 3000);
-    }}
-}}
-poll_jquery_and_node();
-        """.format(username=username, logout=reverse("logout"))
-        return HttpResponse(js, status=200,
-                            content_type="application/javascript")
+        ctx = dict(username=username, logout=reverse("logout"),
+                   poweruser=config.get('poweruser'))
+
+        return render(request, 'kibanana/inject.js', ctx,
+                      content_type="application/javascript")
 
 
 class LogoutView(View):
