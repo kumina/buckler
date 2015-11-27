@@ -1,4 +1,6 @@
 (function() {
+    var tries = 0;
+
     function poll_jquery_and_node() {
         if(typeof $ !== "undefined" && $("div.navbar-collapse").length > 0) {
             $("div.navbar-collapse").append('<ul class="nav navbar-nav">' +
@@ -16,7 +18,10 @@
         }
         else {
             // be aggressive, don't want settings to show briefly
-            setTimeout(poll_jquery_and_check_settings, 10);
+            tries += 1;
+            if(tries < 1000) {  // try 10 sec
+                setTimeout(poll_jquery_and_check_settings, 10);
+            }
         }
     }
     poll_jquery_and_node();
