@@ -1,6 +1,6 @@
 import requests
 import fnmatch
-
+from urlparse import urljoin
 import json
 
 from django.http import HttpResponse
@@ -20,6 +20,10 @@ def get_session(request):
     return None, None
 
 
+def open_indexes(config):
+    indexes = ",".join(config.get('indexes', []))
+    requests.post(urljoin(settings.ES_UPSTREAM, indexes + '/_open'))
+
 
 class LoginView(View):
     def get(self, request, *args, **kwargs):
@@ -29,28 +33,38 @@ class LoginView(View):
         username = request.POST.get('username')
         password = request.POST.get('password')
 
-        if username in settings.CONFIG and settings.CONFIG[username]['password'] == password:
+        if username in settings.CONFIG and \
+           settings.CONFIG[username]['password'] == password:
             request.session['username'] = username
-            return redirect('/')
+            open_indexes(settings.CONFIG[username])
+            # indexes may not be ready at this point yet. Alternatively,
+            # redirect to a url that checks the state of indexes and
+            # keeps redirecting, possibly with a delay in the served html
+            return redirect('/')  # redirect sw that checks + opens indexes?
         else:
-            return render(request, "kibanana/login.html", {'error':'Invalid username or password'})
+            return render(request, "kibanana/login.html",
+                          {'error': 'Invalid username or password'})
+
 
 class InjectJSView(View):
     def get(self, request, *args, **kwargs):
         username, config = get_session(request)
         js = """
-            function poll_jquery_and_node() {{
-                if(typeof $ !== "undefined" && $("div.navbar-collapse").length > 0) {{
-                    $("div.navbar-collapse").append('<ul class="nav navbar-nav"><li><a href="{logout}"><i class="fa fa-sign-out"></i> Logout {username}</a></li></ul>');
-                }}
-                else {{
-                    setTimeout(poll_jquery_and_node, 3000);
-                }}
-            }}
-            poll_jquery_and_node();
+function poll_jquery_and_node() {{
+    if(typeof $ !== "undefined" && $("div.navbar-collapse").length > 0) {{
+        $("div.navbar-collapse").append('<ul class="nav navbar-nav">' +
+          '<li><a href="{logout}"><i class="fa fa-sign-out">' +
+          '</i> Logout {username}</a></li></ul>');
+    }}
+    else {{
+        setTimeout(poll_jquery_and_node, 3000);
+    }}
+}}
+poll_jquery_and_node();
         """.format(username=username, logout=reverse("logout"))
         return HttpResponse(js, status=200,
-                content_type="application/javascript")
+                            content_type="application/javascript")
+
 
 class LogoutView(View):
     def get(self, request, *args, **kwargs):
@@ -97,7 +111,8 @@ class BananaView(View):
                 index = doc.get('_index')
                 if index:
                     if not index_allowed(index):
-                        raise Http404("Access to index denied: {0}".format(index))
+                        raise Http404("Access to index denied: {0}"
+                                      .format(index))
 
         def check_msearch_body():
             # Not very efficient - possibly multiple lines containing
@@ -111,25 +126,25 @@ class BananaView(View):
                         indexes = [indexes]
                     for index in indexes:
                         if not index_allowed(index):
-                            raise Http404("Access to index denied: {0}".format(index))
-
+                            raise Http404("Access to index denied: {0}"
+                                          .format(index))
 
         if parts[0].lower() == 'elasticsearch' and len(parts) > 1:
             # /elasticsearch/ and /elasticsearch/_nodes
             if parts[1] in ('', '_nodes'):
-                pass # allowed
+                pass  # allowed
             # /elasticsearch/_cluster/health/.kibana-<user>
             elif parts[1] == '_cluster':
                 check_explicit_index(parts[-1])
             # /elasticsearch/.kibana-someuser
             elif parts[1].startswith(".kibana"):
                 # bypass kibana, go directly to ES since kibana will not allow
-                # us to access any other ".kibana" index than the configured one
+                # us to access any other .kibana index than the configured one
                 upstream = settings.ES_UPSTREAM
                 url = url.split('/', 1)[1]
             # /elasticsearch/_all or /elasticsearch/_query
             elif parts[1] in ('_all', '_query'):
-                ## include .kibana-<username> ?
+                # include .kibana-<username> ?
                 parts[1] = ",".join(config['indexes']) + "/" + parts[1]
                 url = "/".join(parts)
             # /elasticsearch/_mget
@@ -154,7 +169,7 @@ class BananaView(View):
         param_str = self.request.GET.urlencode()
         request_url = u'%s/%s' % (upstream, url)
         request_url += '?%s' % param_str if param_str else ''
-        print "RESULT", request_url
+        # print "RESULT", request_url
         return request_url
 
     def dispatch(self, *args, **kwargs):
@@ -177,12 +192,12 @@ class BananaView(View):
             data_decode['kibana_index'] = ".kibana-{0}".format(username)
             data = json.dumps(data_decode)
 
-        if url == '': # / requested: inject javascript
-            data = data.replace("</body>", '<script src="/inject.js"></script></body>')
-
+        if url == '':  # / requested: inject javascript
+            data = data.replace("</body>",
+                                '<script src="/inject.js"></script></body>')
 
         return HttpResponse(data, status=res.status_code,
-                content_type=res.headers['content-type'])
+                            content_type=res.headers['content-type'])
 
     def post(self, request, url, *args, **kwargs):
         # import pdb; pdb.set_trace()
@@ -193,8 +208,7 @@ class BananaView(View):
 
         res = requests.post(request_url, data=request.body)
         return HttpResponse(res.content, status=res.status_code,
-                content_type=res.headers['content-type'])
-
+                            content_type=res.headers['content-type'])
 
     def head(self, request, url, *args, **kwargs):
         # print "HEAD called!", request, url
@@ -205,12 +219,11 @@ class BananaView(View):
 
         res = requests.delete(request_url, data=request.body)
         return HttpResponse(res.content, status=res.status_code,
-                content_type=res.headers['content-type'])
+                            content_type=res.headers['content-type'])
 
     def put(self, request, url, *args, **kwargs):
         request_url = self.get_full_url(url, request)
 
         res = requests.put(request_url, data=request.body)
         return HttpResponse(res.content, status=res.status_code,
-                content_type=res.headers['content-type'])
-
+                            content_type=res.headers['content-type'])
