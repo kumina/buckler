@@ -25,6 +25,34 @@ def open_indexes(config):
     requests.post(urljoin(settings.ES_UPSTREAM, indexes + '/_open'))
 
 
+def create_index_patterns(url, username, config, request):
+
+    version = url.rsplit('/', 1)[-1]
+    orig_conf = json.loads(request.body)
+    # url = elasticsearch/.kibana-test1/config/4.1.1
+
+    indexes = config['indexes']
+    indexbase = settings.ES_UPSTREAM + '/.kibana-{0}'.format(username)
+
+    for index in indexes:
+        requests.put(indexbase + '/_mapping/index-pattern', data=json.dumps(
+                    {"index-pattern": {"properties":
+                     {"title": {"type": "string"}, "timeFieldName":
+                    {"type": "string"}, "intervalName": {"type": "string"},
+                     "fields": {"type": "string"},
+                     "fieldFormatMap": {"type": "string"}}}}))
+        requests.post(indexbase + '/index-pattern/{0}?op_type=create'.format(index),
+                      data=json.dumps({'title': index,
+                                       'timeFieldName': '@timestamp'}))
+        requests.post(indexbase + '/_refresh')
+        requests.post(indexbase + '/index-pattern/{0}'.format(index),
+                      data=json.dumps({"title":index,"timeFieldName":"@timestamp","fields":"[{\"name\":\"_index\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":false,\"analyzed\":false,\"doc_values\":false},{\"name\":\"_type\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":false,\"doc_values\":false},{\"name\":\"geoip.location\",\"type\":\"geo_point\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":false,\"doc_values\":false},{\"name\":\"@version\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":false,\"doc_values\":false},{\"name\":\"_source\",\"type\":\"_source\",\"count\":0,\"scripted\":false,\"indexed\":false,\"analyzed\":false,\"doc_values\":false},{\"name\":\"_id\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":false,\"analyzed\":false,\"doc_values\":false},{\"name\":\"request\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":true,\"doc_values\":false},{\"name\":\"agent\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":true,\"doc_values\":false},{\"name\":\"referrer.raw\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":false,\"doc_values\":false},{\"name\":\"auth\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":true,\"doc_values\":false},{\"name\":\"ident\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":true,\"doc_values\":false},{\"name\":\"timestamp.raw\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":false,\"doc_values\":false},{\"name\":\"response.raw\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":false,\"doc_values\":false},{\"name\":\"clientip\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":true,\"doc_values\":false},{\"name\":\"host\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":true,\"doc_values\":false},{\"name\":\"bytes.raw\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":false,\"doc_values\":false},{\"name\":\"timestamp\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":true,\"doc_values\":false},{\"name\":\"ident.raw\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":false,\"doc_values\":false},{\"name\":\"clientip.raw\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":false,\"doc_values\":false},{\"name\":\"host.raw\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":false,\"doc_values\":false},{\"name\":\"verb\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":true,\"doc_values\":false},{\"name\":\"message\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":true,\"doc_values\":false},{\"name\":\"auth.raw\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":false,\"doc_values\":false},{\"name\":\"referrer\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":true,\"doc_values\":false},{\"name\":\"httpversion.raw\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":false,\"doc_values\":false},{\"name\":\"request.raw\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":false,\"doc_values\":false},{\"name\":\"@timestamp\",\"type\":\"date\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":false,\"doc_values\":false},{\"name\":\"agent.raw\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":false,\"doc_values\":false},{\"name\":\"bytes\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":true,\"doc_values\":false},{\"name\":\"response\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":true,\"doc_values\":false},{\"name\":\"httpversion\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":true,\"doc_values\":false},{\"name\":\"verb.raw\",\"type\":\"string\",\"count\":0,\"scripted\":false,\"indexed\":true,\"analyzed\":false,\"doc_values\":false}]"}))
+    orig_conf['defaultIndex'] = indexes[0]
+    requests.post(indexbase + '/config/{0}/_update'.format(version),
+                  data=json.dumps({"doc": orig_conf}))
+
+
+
 class LoginView(View):
     def get(self, request, *args, **kwargs):
         return render(request, "kibanana/login.html")
@@ -190,13 +218,16 @@ class BananaView(View):
                             content_type=res.headers['content-type'])
 
     def post(self, request, url, *args, **kwargs):
-        # import pdb; pdb.set_trace()
-
         username, config = get_session(request)
 
         request_url = self.get_full_url(url, request)
 
         res = requests.post(request_url, data=request.body)
+
+        if url.startswith("elasticsearch/.kibana-{0}/config/"
+                          .format(username)) and res.status_code == 201:
+            create_index_patterns(url, username, config, request)
+
         return HttpResponse(res.content, status=res.status_code,
                             content_type=res.headers['content-type'])
 
