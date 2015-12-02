@@ -324,105 +324,106 @@ class LogoutView(View):
         return redirect('/')
 
 
-class BananaView(View):
+def get_full_url(url, request):
+    """
+        Construct the full (upstream) url
+    """
+    upstream = settings.KIBANA_UPSTREAM
+    username, config = get_session(request)
 
-    def get_full_url(self, url, request):
-        """
-            Construct the full (upstream) url
-        """
-        upstream = settings.KIBANA_UPSTREAM
-        username, config = get_session(self.request)
+    body = request.body
 
-        body = request.body
+    parts = url.split('/')
 
-        parts = url.split('/')
+    def index_allowed(index):
+        """ Verify if access to the index is allowed by
+            any of the config indexes """
+        if index == ".kibana-" + username:
+            return True
 
-        def index_allowed(index):
-            """ Verify if access to the index is allowed by
-                any of the config indexes """
-            if index == ".kibana-" + username:
+        for allowed_index in config['indexes']:
+            if fnmatch.fnmatch(index, allowed_index):
                 return True
+        return False
 
-            for allowed_index in config['indexes']:
-                if fnmatch.fnmatch(index, allowed_index):
-                    return True
-            return False
+    def check_explicit_index(part):
+        """ If there's an index in 'part' where the user does not have
+            access to, raise 404 """
 
-        def check_explicit_index(part):
-            """ If there's an index in 'part' where the user does not have
-                access to, raise 404 """
+        indexes = part.split(",")
+        for index in indexes:
+            if not index_allowed(index):
+                raise Http404("Access to index denied: {0}".format(index))
 
-            indexes = part.split(",")
-            for index in indexes:
+    def check_mget_body():
+        data = json.loads(body)
+        for doc in data.get('docs', []):
+            index = doc.get('_index')
+            if index:
                 if not index_allowed(index):
-                    raise Http404("Access to index denied: {0}".format(index))
+                    raise Http404("Access to index denied: {0}"
+                                  .format(index))
 
-        def check_mget_body():
-            data = json.loads(body)
-            for doc in data.get('docs', []):
-                index = doc.get('_index')
-                if index:
+    def check_msearch_body():
+        # Not very efficient - possibly multiple lines containing
+        # (possibly) multiple indexes (e.g. for an entire year or
+        # longer) match against multiple allowed_index patterns
+        for line in body.splitlines():
+            data = json.loads(line)
+            if 'index' in data:
+                indexes = data.get('index')
+                if not isinstance(indexes, list):
+                    indexes = [indexes]
+                for index in indexes:
                     if not index_allowed(index):
                         raise Http404("Access to index denied: {0}"
                                       .format(index))
 
-        def check_msearch_body():
-            # Not very efficient - possibly multiple lines containing
-            # (possibly) multiple indexes (e.g. for an entire year or
-            # longer) match against multiple allowed_index patterns
-            for line in body.splitlines():
-                data = json.loads(line)
-                if 'index' in data:
-                    indexes = data.get('index')
-                    if not isinstance(indexes, list):
-                        indexes = [indexes]
-                    for index in indexes:
-                        if not index_allowed(index):
-                            raise Http404("Access to index denied: {0}"
-                                          .format(index))
+    if parts[0].lower() == 'elasticsearch' and len(parts) > 1:
+        # /elasticsearch/ and /elasticsearch/_nodes
+        if parts[1] in ('', '_nodes'):
+            pass  # allowed
+        # /elasticsearch/_cluster/health/.kibana-<user>
+        elif parts[1] == '_cluster':
+            check_explicit_index(parts[-1])
+        # /elasticsearch/.kibana-someuser
+        elif parts[1].startswith(".kibana"):
+            # bypass kibana, go directly to ES since kibana will not allow
+            # us to access any other .kibana index than the configured one
+            upstream = settings.ES_UPSTREAM
+            url = url.split('/', 1)[1]
+        # /elasticsearch/_all or /elasticsearch/_query
+        elif parts[1] in ('_all', '_query'):
+            # include .kibana-<username> ?
+            parts[1] = ",".join(config['indexes']) + "/" + parts[1]
+            url = "/".join(parts)
+        # /elasticsearch/_mget
+        elif parts[1] == '_mget':
+            check_mget_body()
 
-        if parts[0].lower() == 'elasticsearch' and len(parts) > 1:
-            # /elasticsearch/ and /elasticsearch/_nodes
-            if parts[1] in ('', '_nodes'):
-                pass  # allowed
-            # /elasticsearch/_cluster/health/.kibana-<user>
-            elif parts[1] == '_cluster':
-                check_explicit_index(parts[-1])
-            # /elasticsearch/.kibana-someuser
-            elif parts[1].startswith(".kibana"):
-                # bypass kibana, go directly to ES since kibana will not allow
-                # us to access any other .kibana index than the configured one
-                upstream = settings.ES_UPSTREAM
-                url = url.split('/', 1)[1]
-            # /elasticsearch/_all or /elasticsearch/_query
-            elif parts[1] in ('_all', '_query'):
-                # include .kibana-<username> ?
-                parts[1] = ",".join(config['indexes']) + "/" + parts[1]
-                url = "/".join(parts)
-            # /elasticsearch/_mget
-            elif parts[1] == '_mget':
-                check_mget_body()
+        # /elasticsearch/index/_mget
+        elif len(parts) > 2 and parts[2] == '_mget':
+            check_explicit_index(parts[1])
+            check_mget_body()
+        # /elasticsearch/_msearch
+        elif parts[1] == '_msearch':
+            check_msearch_body()
+        # /elasticsearch/index/_msearch
+        elif len(parts) > 2 and parts[2] == '_msearch':
+            check_explicit_index(parts[1])
+            check_msearch_body()
+        # /elasticsearch/index/_somemethod_or_type
+        else:
+            check_explicit_index(parts[1])
 
-            # /elasticsearch/index/_mget
-            elif len(parts) > 2 and parts[2] == '_mget':
-                check_explicit_index(parts[1])
-                check_mget_body()
-            # /elasticsearch/_msearch
-            elif parts[1] == '_msearch':
-                check_msearch_body()
-            # /elasticsearch/index/_msearch
-            elif len(parts) > 2 and parts[2] == '_msearch':
-                check_explicit_index(parts[1])
-                check_msearch_body()
-            # /elasticsearch/index/_somemethod_or_type
-            else:
-                check_explicit_index(parts[1])
+    param_str = request.GET.urlencode()
+    request_url = u'%s/%s' % (upstream, url)
+    request_url += '?%s' % param_str if param_str else ''
+    # print "RESULT", request_url
+    return request_url
 
-        param_str = self.request.GET.urlencode()
-        request_url = u'%s/%s' % (upstream, url)
-        request_url += '?%s' % param_str if param_str else ''
-        # print "RESULT", request_url
-        return request_url
+
+class BananaView(View):
 
     def dispatch(self, *args, **kwargs):
         if not get_session(self.request)[0]:
@@ -433,7 +434,7 @@ class BananaView(View):
     def get(self, request, url, *args, **kwargs):
         username, config = get_session(request)
 
-        request_url = self.get_full_url(url, request)
+        request_url = get_full_url(url, request)
 
         res = requests.get(request_url)
 
@@ -454,7 +455,7 @@ class BananaView(View):
     def post(self, request, url, *args, **kwargs):
         username, config = get_session(request)
 
-        request_url = self.get_full_url(url, request)
+        request_url = get_full_url(url, request)
 
         res = requests.post(request_url, data=request.body)
 
@@ -470,7 +471,7 @@ class BananaView(View):
         return self.get(request, url, *args, **kwargs)
 
     def delete(self, request, url, *args, **kwargs):
-        request_url = self.get_full_url(url, request)
+        request_url = get_full_url(url, request)
 
         res = requests.delete(request_url, data=request.body)
         return HttpResponse(res.content, status=res.status_code,
