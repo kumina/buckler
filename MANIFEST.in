@@ -1,0 +1,6 @@
+include *.md
+
+recursive-include buckler *
+
+global-exclude *.pyc
+

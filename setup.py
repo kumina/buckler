@@ -3,7 +3,7 @@ import os
 
 version = '0.1.0'
 
-setup(name='kibanana',
+setup(name='buckler',
       version=version,
       description="Proxy for ES",
       long_description=open("README.md").read(),
@@ -27,4 +27,3 @@ setup(name='kibanana',
       },
 
       )
-
