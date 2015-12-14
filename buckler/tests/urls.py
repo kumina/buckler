@@ -1,7 +1,6 @@
-from django.conf.urls import include, url
-from django.contrib import admin
+from django.conf.urls import url
 
-from .views import BucklerView, LoginView, LogoutView, InjectJSView
+from ..views import BucklerView, LoginView, LogoutView, InjectJSView
 
 
 urlpatterns = [

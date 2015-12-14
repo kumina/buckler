@@ -289,7 +289,7 @@ def create_index_patterns(url, username, config, request):
 
 class LoginView(View):
     def get(self, request, *args, **kwargs):
-        return render(request, "kibanana/login.html")
+        return render(request, "buckler/login.html")
 
     def post(self, request, *args, **kwargs):
         username = request.POST.get('username')
@@ -304,7 +304,7 @@ class LoginView(View):
             # keeps redirecting, possibly with a delay in the served html
             return redirect('/')  # redirect sw that checks + opens indexes?
         else:
-            return render(request, "kibanana/login.html",
+            return render(request, "buckler/login.html",
                           {'error': 'Invalid username or password'})
 
 
@@ -314,7 +314,7 @@ class InjectJSView(View):
         ctx = dict(username=username, logout=reverse("logout"),
                    poweruser=config.get('poweruser'))
 
-        return render(request, 'kibanana/inject.js', ctx,
+        return render(request, 'buckler/inject.js', ctx,
                       content_type="application/javascript")
 
 
@@ -423,13 +423,13 @@ def get_full_url(url, request):
     return request_url
 
 
-class BananaView(View):
+class BucklerView(View):
 
     def dispatch(self, *args, **kwargs):
         if not get_session(self.request)[0]:
             return redirect('login')
 
-        return super(BananaView, self).dispatch(*args, **kwargs)
+        return super(BucklerView, self).dispatch(*args, **kwargs)
 
     def get(self, request, url, *args, **kwargs):
         username, config = get_session(request)
