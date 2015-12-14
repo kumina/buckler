@@ -10,12 +10,14 @@ from mock import patch
 # logout
 
 
+def fake_login(client, username):
+    session = client.session
+    session['username'] = username
+    session.save()
+    return session
+
+
 class TestAuthenticationViews(TestCase):
-    def fake_login(self, client, username):
-        session = client.session
-        session['username'] = username
-        session.save()
-        return session
 
     def test_get_unauthenticated(self):
         c = Client()
@@ -46,7 +48,7 @@ class TestAuthenticationViews(TestCase):
 
     def test_logout(self):
         c = Client()
-        self.fake_login(c, 'blah')
+        fake_login(c, 'blah')
         response = c.get(reverse('logout'))
         self.assertEquals(c.session.get('username', 'empty'), 'empty')
         self.assertEquals(response.status_code, 302)
@@ -64,7 +66,7 @@ class TestAuthenticationViews(TestCase):
     @patch("requests.get")
     def test_auth_get(self, r):
         c = Client()
-        self.fake_login(c, 'blah')
+        fake_login(c, 'blah')
         with self.settings(CONFIG={'john': {'password': 's3cr3t'}}):
             response = c.get('/')
             # there's not much to test against, entire response will be mock
@@ -74,10 +76,48 @@ class TestAuthenticationViews(TestCase):
     @patch("requests.post")
     def test_auth_post(self, r):
         c = Client()
-        self.fake_login(c, 'blah')
+        fake_login(c, 'blah')
         with self.settings(CONFIG={'john': {'password': 's3cr3t'}}):
             response = c.post('/')
             self.assertNotEquals(response.status_code, 200)
             # there's not much to test against, entire response will be mock
             # data
             self.assertNotEquals(response.status_code, 302)
+
+
+class TestInjectView(TestCase):
+    def test_normal(self):
+        c = Client()
+        fake_login(c, 'john')
+        with self.settings(CONFIG={'john': {'password': 's3cr3t'}}):
+            response = c.get(reverse('injectjs'))
+        self.assertEquals(response.context.get('username'), 'john')
+        self.assertEquals(response.context.get('logout'), reverse('logout'))
+        self.assertFalse(response.context.get('poweruser'))
+
+    def test_poweruser(self):
+        c = Client()
+        fake_login(c, 'john')
+        with self.settings(CONFIG={'john': {'password': 's3cr3t',
+                                            'poweruser': True}}):
+            response = c.get(reverse('injectjs'))
+        self.assertEquals(response.context.get('username'), 'john')
+        self.assertEquals(response.context.get('logout'), reverse('logout'))
+        self.assertTrue(response.context.get('poweruser'))
+
+    @responses.activate
+    def test_injections(self):
+        responses.add(responses.GET, 'http://testing.test:124/',
+                      body='<html><body>Hello</body></html',
+                      status=200)
+        c = Client()
+        fake_login(c, 'john')
+        with self.settings(CONFIG={'john': {'password': 's3cr3t',
+                                            'poweruser': True}}):
+            response = c.get('/')
+        self.assertInHTML('<script src="{0}"></script>'
+                        .format(reverse('injectjs')), response.content)
+
+
+class TestIndexAccess(TestCase):
+    """ verify a logged in user has only access to specific indexes """

@@ -447,7 +447,8 @@ class BucklerView(View):
 
         if url == '':  # / requested: inject javascript
             data = data.replace("</body>",
-                                '<script src="/inject.js"></script></body>')
+                                '<script src="{0}"></script></body>'
+                                .format(reverse('injectjs')))
 
         return HttpResponse(data, status=res.status_code,
                             content_type=res.headers['content-type'])
