@@ -15,10 +15,6 @@ from mock import Mock, patch
 from ..views import get_full_url
 
 
-# test auth: redirect naar login url,
-# logout
-
-
 def fake_login(client, username):
     session = client.session
     session['username'] = username
@@ -278,6 +274,31 @@ class TestIndexAccess(TestCase):
 
     @override_settings(CONFIG={'john': {'password': 's3cr3t',
                                         'indexes': ('logstash-john-*',)}})
+    def test_mget_extended_allowed(self):
+        """ test _mget which takes indexes in the body """
+        path = 'elasticsearch/logstash-john-1/_mget'
+        request = self.factory.post(path, content_type="application/json",
+                                    data=json.dumps({
+                                        'docs': [{'_index': 'logstash-john-123'}]
+                                    }))
+        request.session = {'username': 'john'}
+        res = get_full_url(path, request)
+        self.assertURL(res, settings.KIBANA_UPSTREAM, '/' + path)
+
+    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+                                        'indexes': ('logstash-john-*',)}})
+    def test_mget_extended_disallowed(self):
+        """ test _mget which takes indexes in the body """
+        path = 'elasticsearch/logstash-jane-1/_mget'
+        request = self.factory.post(path, content_type="application/json",
+                                    data=json.dumps({
+                                        'docs': [{'_index': 'logstash-jane-123'}]
+                                    }))
+        request.session = {'username': 'john'}
+        self.assertRaises(Http404, lambda: get_full_url(path, request))
+
+    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+                                        'indexes': ('logstash-john-*',)}})
     def test_msearch_allowed(self):
         """ test _msearch which takes indexes in the body """
         path = 'elasticsearch/_msearch'
@@ -361,13 +382,15 @@ class TestIndexAccess(TestCase):
 class TestIndexCreateion(TestCase):
     @override_settings(CONFIG={'john': {'passVword': 's3cr3t',
                                         'indexes': ('logstash-john-*',)}})
-    @patch("requests.post")
     @patch("buckler.views.create_index_patterns")
-    def test_trigger(self, r, cip):
+    def test_trigger(self, cip):
         """ """
         c = Client()
         fake_login(c, 'john')
-        c.post('/elasticsearch/.kibana-john/config/')
+        with patch("requests.post", return_value=Mock(status_code=201,
+                    content='',
+                    headers={'content-type': 'application/json'})):
+            c.post('/elasticsearch/.kibana-john/config/')
 
         self.assertEquals(cip.call_count, 1)
 
