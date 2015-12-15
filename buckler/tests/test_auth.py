@@ -275,3 +275,84 @@ class TestIndexAccess(TestCase):
                                     }))
         request.session = {'username': 'john'}
         self.assertRaises(Http404, lambda: get_full_url(path, request))
+
+    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+                                        'indexes': ('logstash-john-*',)}})
+    def test_msearch_allowed(self):
+        """ test _msearch which takes indexes in the body """
+        path = 'elasticsearch/_msearch'
+        body = "\n".join([json.dumps({'somerandom': 'json'}),
+                          json.dumps({'index': ["logstash-john-123",
+                                                "logstash-john-234"]}),
+                          json.dumps({'index': "logstash-john-333"})])
+        request = self.factory.post(path, content_type="application/json",
+                                    data=body)
+        request.session = {'username': 'john'}
+        res = get_full_url(path, request)
+        self.assertURL(res, settings.KIBANA_UPSTREAM, '/' + path)
+
+    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+                                        'indexes': ('logstash-john-*',)}})
+    def test_msearch_disallowed(self):
+        """ test _msearch which takes indexes in the body """
+        path = 'elasticsearch/_msearch'
+        # body has an index (jane) that john doesn't have access to
+        body = "\n".join([json.dumps({'somerandom': 'json'}),
+                          json.dumps({'index': ["logstash-john-123",
+                                                "logstash-jane-234"]}),
+                          json.dumps({'index': "logstash-john-333"})])
+        request = self.factory.post(path, content_type="application/json",
+                                    data=body)
+        request.session = {'username': 'john'}
+        self.assertRaises(Http404, lambda: get_full_url(path, request))
+
+    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+                                        'indexes': ('logstash-john-*',)}})
+    def test_msearch_extended_allowed(self):
+        """ test _msearch which takes indexes in the body with
+            index in path as well """
+        path = 'elasticsearch/logstash-john-666/_msearch'
+        body = "\n".join([json.dumps({'somerandom': 'json'}),
+                          json.dumps({'index': ["logstash-john-123",
+                                                "logstash-john-234"]}),
+                          json.dumps({'index': "logstash-john-333"})])
+        request = self.factory.post(path, content_type="application/json",
+                                    data=body)
+        request.session = {'username': 'john'}
+        res = get_full_url(path, request)
+        self.assertURL(res, settings.KIBANA_UPSTREAM, '/' + path)
+
+    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+                                        'indexes': ('logstash-john-*',)}})
+    def test_msearch_extended_disallowed(self):
+        """ test _msearch which takes indexes in the body with
+            index in path as well """
+        path = 'elasticsearch/logstash-jane-666/_msearch'
+        # body has an index (jane) that john doesn't have access to
+        body = "\n".join([json.dumps({'somerandom': 'json'}),
+                          json.dumps({'index': ["logstash-john-123",
+                                                "logstash-john-234"]}),
+                          json.dumps({'index': "logstash-john-333"})])
+        request = self.factory.post(path, content_type="application/json",
+                                    data=body)
+        request.session = {'username': 'john'}
+        self.assertRaises(Http404, lambda: get_full_url(path, request))
+
+    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+                                        'indexes': ('logstash-john-*',)}})
+    def test_index_direct_allowed(self):
+        """ just /elasticsearch/someindex,someotherindex """
+        path = "elasticsearch/logstash-john-1,logstash-john-2"
+        request = self.factory.get(path)
+        request.session = {'username': 'john'}
+        res = get_full_url(path, request)
+        self.assertURL(res, settings.KIBANA_UPSTREAM, '/' + path)
+
+    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+                                        'indexes': ('logstash-john-*',)}})
+    def test_index_direct_disallowed(self):
+        """ just /elasticsearch/someindex,someotherindex """
+        path = "elasticsearch/logstash-john-1,logstash-jane-2"
+        request = self.factory.get(path)
+        request.session = {'username': 'john'}
+        self.assertRaises(Http404, lambda: get_full_url(path, request))

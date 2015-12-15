@@ -422,6 +422,7 @@ def get_full_url(url, request):
     # print "RESULT", request_url
     return request_url
 
+
 class BucklerView(View):
 
     def dispatch(self, *args, **kwargs):
