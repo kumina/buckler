@@ -1,11 +1,19 @@
 import responses
 import json
+import urlparse
 
-from django.test import TestCase
+from django.conf import settings
+
+from django.test import TestCase, override_settings
 from django.test import Client
+from django.test import RequestFactory
 from django.core.urlresolvers import reverse
+from django.http import Http404
 
 from mock import patch
+
+from ..views import get_full_url
+
 
 # test auth: redirect naar login url,
 # logout
@@ -120,8 +128,8 @@ class TestInjectView(TestCase):
                         .format(reverse('injectjs')), response.content)
 
 
-class TestIndexAccess(TestCase):
-    """ verify a logged in user has only access to specific indexes """
+class TestKibanaIndexAccess(TestCase):
+    """ Test kibana config rewrite """
 
     @responses.activate
     def test_config_index_rewrite(self):
@@ -136,3 +144,134 @@ class TestIndexAccess(TestCase):
 
         data = json.loads(response.content)
         self.assertEquals(data.get('kibana_index'), '.kibana-john')
+
+
+class TestIndexAccess(TestCase):
+    """ verify a logged in user has only access to specific indexes """
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    def assertURL(self, url, host, base, data={}):
+        """ assert a URL match on host/path/data """
+        parts = urlparse.urlparse(url)
+        self.assertEquals("{0}://{1}".format(parts.scheme, parts.netloc), host)
+        self.assertEquals(parts.path, base)
+        params = dict(urlparse.parse_qsl(parts.query))
+        if data:
+            self.assertEquals(params, data)
+
+    @override_settings(CONFIG={'john': {'password': 's3cr3t'}})
+    def test_kibana_proxy(self):
+        """ a non-elastic request should go to kibana """
+        path = 'bla/foo'
+        data = {'this': '1', 'that': '2'}
+        request = self.factory.get(path, data)
+        request.session = {'username': 'john'}
+        res = get_full_url('bla/foo', request)
+        self.assertURL(res, settings.KIBANA_UPSTREAM, '/' + path, data)
+
+    @override_settings(CONFIG={'john': {'password': 's3cr3t'}})
+    def test_kibana_usermatch(self):
+        """ A user can access his own kibana index which gets proxied
+            directly to ES"""
+        path = 'elasticsearch/.kibana-john'
+        request = self.factory.get(path)
+        request.session = {'username': 'john'}
+        res = get_full_url(path, request)
+        self.assertURL(res, settings.ES_UPSTREAM, '/.kibana-john')
+
+    @override_settings(CONFIG={'john': {'password': 's3cr3t'}})
+    def test_kibana_usermismatch(self):
+        """ A user cannot access any other kibana config index """
+        path = 'elasticsearch/.kibana-jane'
+        request = self.factory.get(path)
+        request.session = {'username': 'john'}
+        self.assertRaises(Http404, lambda: get_full_url(path, request))
+
+    @override_settings(CONFIG={'john': {'password': 's3cr3t'}})
+    def test_es_nodes(self):
+        """ calls to /elasticsearch/_nodes go verbatim to Kibana """
+        path = 'elasticsearch/_nodes'
+        request = self.factory.get(path)
+        request.session = {'username': 'john'}
+        res = get_full_url(path, request)
+        self.assertURL(res, settings.KIBANA_UPSTREAM, '/elasticsearch/_nodes')
+
+    @override_settings(CONFIG={'john': {'password': 's3cr3t'}})
+    def test_es_root(self):
+        """ calls to /elasticsearch/ go verbatim to Kibana"""
+        path = 'elasticsearch/'
+        request = self.factory.get(path)
+        request.session = {'username': 'john'}
+        res = get_full_url(path, request)
+        self.assertURL(res, settings.KIBANA_UPSTREAM, '/elasticsearch/')
+
+    @override_settings(CONFIG={'john': {'password': 's3cr3t'}})
+    def test_cluster_allowed_kibanaindex(self):
+        """ /elasticsearch/_cluster only for allowed indexes """
+        path = 'elasticsearch/_cluster/.kibana-john'
+        request = self.factory.get(path)
+        request.session = {'username': 'john'}
+        res = get_full_url(path, request)
+        self.assertURL(res, settings.KIBANA_UPSTREAM, '/' + path)
+
+    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+                                        'indexes': ('logstash-john-*',)}})
+    def test_cluster_allowed(self):
+        """ /elasticsearch/_cluster only for allowed indexes """
+        path = 'elasticsearch/_cluster/logstash-john-123'
+        request = self.factory.get(path)
+        request.session = {'username': 'john'}
+        res = get_full_url(path, request)
+        self.assertURL(res, settings.KIBANA_UPSTREAM, '/' + path)
+
+    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+                                        'indexes': ('logstash-john-*',
+                                                    'logstash-test-*')}})
+    def test_elasticsearch_all(self):
+        """" A request for /elasticsearch/_all should be rewritten
+             to the explicitly allowed indexes in stead """
+        path = 'elasticsearch/_all'
+        request = self.factory.get(path)
+        request.session = {'username': 'john'}
+        res = get_full_url(path, request)
+        self.assertURL(res, settings.KIBANA_UPSTREAM,
+                       '/elasticsearch/logstash-john-*,logstash-test-*/_all')
+
+    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+                                        'indexes': ('logstash-john-*',
+                                                    'logstash-test-*')}})
+    def test_elasticsearch_query(self):
+        """" A request for /elasticsearch/_query should be rewritten
+             to the explicitly allowed indexes in stead """
+        path = 'elasticsearch/_query'
+        request = self.factory.get(path)
+        request.session = {'username': 'john'}
+        res = get_full_url(path, request)
+        self.assertURL(res, settings.KIBANA_UPSTREAM,
+                       '/elasticsearch/logstash-john-*,logstash-test-*/_query')
+
+    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+                                        'indexes': ('logstash-john-*',)}})
+    def test_mget_allowed(self):
+        """ test _mget which takes indexes in the body """
+        path = 'elasticsearch/_mget'
+        request = self.factory.post(path, content_type="application/json",
+                                    data=json.dumps({
+                                        'docs': [{'_index': 'logstash-john-123'}]
+                                    }))
+        request.session = {'username': 'john'}
+        res = get_full_url(path, request)
+        self.assertURL(res, settings.KIBANA_UPSTREAM, '/' + path)
+
+    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+                                        'indexes': ('logstash-john-*',)}})
+    def test_mget_disallowed(self):
+        """ test _mget which takes indexes in the body """
+        path = 'elasticsearch/_mget'
+        request = self.factory.post(path, content_type="application/json",
+                                    data=json.dumps({
+                                        'docs': [{'_index': 'logstash-jane-123'}]
+                                    }))
+        request.session = {'username': 'john'}
+        self.assertRaises(Http404, lambda: get_full_url(path, request))

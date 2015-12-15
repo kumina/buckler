@@ -341,10 +341,14 @@ def get_full_url(url, request):
         if index == ".kibana-" + username:
             return True
 
-        for allowed_index in config['indexes']:
+        for allowed_index in config.get('indexes', []):
             if fnmatch.fnmatch(index, allowed_index):
                 return True
         return False
+
+    def index_allowed_or_404(index):
+        if not index_allowed(index):
+            raise Http404("Access to index denied: {0}".format(index))
 
     def check_explicit_index(part):
         """ If there's an index in 'part' where the user does not have
@@ -352,17 +356,14 @@ def get_full_url(url, request):
 
         indexes = part.split(",")
         for index in indexes:
-            if not index_allowed(index):
-                raise Http404("Access to index denied: {0}".format(index))
+            index_allowed_or_404(index)
 
     def check_mget_body():
         data = json.loads(body)
         for doc in data.get('docs', []):
             index = doc.get('_index')
             if index:
-                if not index_allowed(index):
-                    raise Http404("Access to index denied: {0}"
-                                  .format(index))
+                index_allowed_or_404(index)
 
     def check_msearch_body():
         # Not very efficient - possibly multiple lines containing
@@ -375,9 +376,7 @@ def get_full_url(url, request):
                 if not isinstance(indexes, list):
                     indexes = [indexes]
                 for index in indexes:
-                    if not index_allowed(index):
-                        raise Http404("Access to index denied: {0}"
-                                      .format(index))
+                    index_allowed_or_404(index)
 
     if parts[0].lower() == 'elasticsearch' and len(parts) > 1:
         # /elasticsearch/ and /elasticsearch/_nodes
@@ -390,6 +389,7 @@ def get_full_url(url, request):
         elif parts[1].startswith(".kibana"):
             # bypass kibana, go directly to ES since kibana will not allow
             # us to access any other .kibana index than the configured one
+            index_allowed_or_404(parts[1])
             upstream = settings.ES_UPSTREAM
             url = url.split('/', 1)[1]
         # /elasticsearch/_all or /elasticsearch/_query
