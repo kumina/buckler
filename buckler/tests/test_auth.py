@@ -10,7 +10,7 @@ from django.test import RequestFactory
 from django.core.urlresolvers import reverse
 from django.http import Http404
 
-from mock import patch
+from mock import Mock, patch
 
 from ..views import get_full_url
 
@@ -348,7 +348,7 @@ class TestIndexAccess(TestCase):
         res = get_full_url(path, request)
         self.assertURL(res, settings.KIBANA_UPSTREAM, '/' + path)
 
-    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+    @override_settings(CONFIG={'john': {'passVword': 's3cr3t',
                                         'indexes': ('logstash-john-*',)}})
     def test_index_direct_disallowed(self):
         """ just /elasticsearch/someindex,someotherindex """
@@ -356,3 +356,51 @@ class TestIndexAccess(TestCase):
         request = self.factory.get(path)
         request.session = {'username': 'john'}
         self.assertRaises(Http404, lambda: get_full_url(path, request))
+
+
+class TestIndexCreateion(TestCase):
+    @override_settings(CONFIG={'john': {'passVword': 's3cr3t',
+                                        'indexes': ('logstash-john-*',)}})
+    @patch("requests.post")
+    @patch("buckler.views.create_index_patterns")
+    def test_trigger(self, r, cip):
+        """ """
+        c = Client()
+        fake_login(c, 'john')
+        c.post('/elasticsearch/.kibana-john/config/')
+
+        self.assertEquals(cip.call_count, 1)
+
+    @responses.activate
+    def test_indexes_created(self):
+        from ..views import create_index_patterns
+        request = Mock(body=json.dumps({}))
+        base = settings.ES_UPSTREAM + '/.kibana-john/'
+
+        responses.add(responses.PUT,
+                      base + '_mapping/index-pattern',
+                      body='',
+                      status=200)
+        responses.add(responses.POST,
+                      base + 'index-pattern/logstash-john-*?op_type=create',
+                      body='',
+                      status=200)
+        responses.add(responses.POST,
+                      base + '_refresh',
+                      body='',
+                      status=200)
+        responses.add(responses.POST,
+                      base + 'index-pattern/logstash-john-*',
+                      body='',
+                      status=200)
+        responses.add(responses.POST,
+                      base + 'config/4.1.2/_update',
+                      body='',
+                      status=200)
+        create_index_patterns("/elasticsearch/.kibana-john/config/4.1.2",
+                              username="john",
+                              config={'indexes': ('logstash-john-*',)},
+                              request=request)
+
+        self.assertEquals(json.loads(responses.calls[4].request.body),
+                          {"doc": {"defaultIndex": "logstash-john-*"}})
