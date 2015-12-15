@@ -1,4 +1,5 @@
 import responses
+import json
 
 from django.test import TestCase
 from django.test import Client
@@ -121,3 +122,17 @@ class TestInjectView(TestCase):
 
 class TestIndexAccess(TestCase):
     """ verify a logged in user has only access to specific indexes """
+
+    @responses.activate
+    def test_config_index_rewrite(self):
+        responses.add(responses.GET, 'http://testing.test:124/config',
+                      body=json.dumps({'kibana_index': '.kibana'}),
+                      status=200, content_type="application/json")
+        c = Client()
+        fake_login(c, 'john')
+        with self.settings(CONFIG={'john': {'password': 's3cr3t',
+                                            'poweruser': True}}):
+            response = c.get('/config')
+
+        data = json.loads(response.content)
+        self.assertEquals(data.get('kibana_index'), '.kibana-john')
