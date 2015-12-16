@@ -468,7 +468,6 @@ class BucklerView(View):
                             content_type=res.headers['content-type'])
 
     def head(self, request, url, *args, **kwargs):
-        # print "HEAD called!", request, url
         return self.get(request, url, *args, **kwargs)
 
     def delete(self, request, url, *args, **kwargs):
@@ -479,7 +478,7 @@ class BucklerView(View):
                             content_type=res.headers['content-type'])
 
     def put(self, request, url, *args, **kwargs):
-        request_url = self.get_full_url(url, request)
+        request_url = get_full_url(url, request)
 
         res = requests.put(request_url, data=request.body)
         return HttpResponse(res.content, status=res.status_code,
