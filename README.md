@@ -27,6 +27,23 @@ configuration after first login.
 
 ## Configuration
 
+Buckler expects the following SETTINGS:
+
+KIBANA_UPSTREAM - the url where Kibana can be found.
+   E.g. http://localhost:5601 - no trailing slash!
+ES_UPSTREAM - the url where Elastic Search can be found.
+   E.g. http://localhost:9200/ - no trailing slash!
+
+CONFIG - A dictionary keyed by usernames that have access. Each value consists
+  of a dictionary holding a password, the indexes the user has access to (as a
+  tuple) and optionally a 'poweruser' flag.
+  E.g.
+  CONFIG = {'john': {'password': 's3cr3t',
+                     'indexes': ('logstash-john-\*', 'logstash-company-\*'),
+                     'poweruser': True},
+            'demo': {'password': 'demo',
+                     'indexes': ('logstash-demo-\*',)}
+           }
 
 ## Requirements
 
