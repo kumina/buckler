@@ -5,7 +5,7 @@ version = '0.1.0'
 
 setup(name='buckler',
       version=version,
-      description="Proxy for ES",
+      description="Authentication proxy for Kibana (ELK)",
       long_description=open("README.md").read(),
       classifiers=[
         "Programming Language :: Python",
