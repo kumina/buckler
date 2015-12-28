@@ -427,3 +427,39 @@ class TestIndexCreateion(TestCase):
 
         self.assertEquals(json.loads(responses.calls[4].request.body),
                           {"doc": {"defaultIndex": "logstash-john-*"}})
+
+    @responses.activate
+    def test_timestamp_indexes_created(self):
+        from ..views import create_index_patterns
+        request = Mock(body=json.dumps({}))
+        base = settings.ES_UPSTREAM + '/.kibana-john/'
+
+        responses.add(responses.PUT,
+                      base + '_mapping/index-pattern',
+                      body='',
+                      status=200)
+        responses.add(responses.POST,
+                      base + 'index-pattern/[logstash-john-]YYYY.MM.DD?op_type=create',
+                      body='',
+                      status=200)
+        responses.add(responses.POST,
+                      base + '_refresh',
+                      body='',
+                      status=200)
+        responses.add(responses.POST,
+                      base + 'index-pattern/[logstash-john-]YYYY.MM.DD',
+                      body='',
+                      status=200)
+        responses.add(responses.POST,
+                      base + 'config/4.1.2/_update',
+                      body='',
+                      status=200)
+        create_index_patterns("/elasticsearch/.kibana-john/config/4.1.2",
+                              username="john",
+                              config={'indexes': ('logstash-john-*',),
+                                      'autoindexes':
+                                      ('[logstash-john-]YYYY.MM.DD',) },
+                              request=request)
+
+        self.assertEquals(json.loads(responses.calls[4].request.body),
+                          {"doc": {"defaultIndex": "[logstash-john-]YYYY.MM.DD"}})

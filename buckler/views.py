@@ -273,7 +273,7 @@ def create_index_patterns(url, username, config, request):
                                         }
                       }))
         data = {'title': index, 'timeFieldName': '@timestamp'}
-        if '[' in index:
+        if index.startswith('[') and ']' in index:
             data['intervalName'] = "days"
         requests.post(indexbase + '/index-pattern/{0}?op_type=create'
                       .format(index),
