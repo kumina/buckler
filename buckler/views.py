@@ -254,12 +254,11 @@ def field_config():
 
 
 def create_index_patterns(url, username, config, request):
-
     version = url.rsplit('/', 1)[-1]
     orig_conf = json.loads(request.body)
     # url = elasticsearch/.kibana-test1/config/4.1.1
 
-    indexes = config['indexes']
+    indexes = config.get('autoindexes', config['indexes'])
     indexbase = settings.ES_UPSTREAM + '/.kibana-{0}'.format(username)
 
     for index in indexes:
@@ -273,15 +272,18 @@ def create_index_patterns(url, username, config, request):
                                          }
                                         }
                       }))
+        data = {'title': index, 'timeFieldName': '@timestamp'}
+        if '[' in index:
+            data['intervalName'] = "days"
         requests.post(indexbase + '/index-pattern/{0}?op_type=create'
                       .format(index),
-                      data=json.dumps({'title': index,
-                                       'timeFieldName': '@timestamp'}))
+                      data=json.dumps(data))
         requests.post(indexbase + '/_refresh')
+        data['fields'] = field_config()
+
         requests.post(indexbase + '/index-pattern/{0}'.format(index),
-                      data=json.dumps({"title": index,
-                                       "timeFieldName": "@timestamp",
-                                       "fields": field_config()}))
+                      data=json.dumps(data))
+
     orig_conf['defaultIndex'] = indexes[0]
     requests.post(indexbase + '/config/{0}/_update'.format(version),
                   data=json.dumps({"doc": orig_conf}))

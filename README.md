@@ -45,6 +45,15 @@ CONFIG - A dictionary keyed by usernames that have access. Each value consists
                      'indexes': ('logstash-demo-\*',)}
            }
 
+  Buckler can (and will) setup initial indexes based on the 'indexes' property.
+  However, if you use time stamp based indexes (e.g. [logstash-]YYYY.MM.DD),
+  set these explicitly as 'autoindexes' if you want these to be created in
+  stead. E.g.
+
+  {'john': {..., 'autoindexes': ('[logstash-john-]YYYY.MM.DD',) ..}
+
+  Currently, only 'daily' interval is supported!
+
 ## Requirements
 
 At this point, Buckler will only work with Kibana 4.1.x. It will not work with
