@@ -61,6 +61,15 @@ newer versions (e.g. 4.3) since the protocol has changed significantly.
 
 Buckler has been tested with Django 1.8 on python 2.7
 
+## Running tests
+
+You can test this package using 'tox'. Install it in a virtualenv if you don't
+already have it:
+
+    virtualenv .; bin/pip install tox
+    bin/tox
+
+
 ## Credits
 
 Buckler was developed by Ivo van der Wijk (m3r consultancy B.V.). Development
