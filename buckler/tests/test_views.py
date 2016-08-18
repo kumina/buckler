@@ -43,7 +43,9 @@ class TestAuthenticationViews(TestCase):
     @patch("requests.post")
     def test_login_success(self, r):
         c = Client()
-        with self.settings(CONFIG={'john': {'password': 's3cr3t'}}):
+        with self.settings(CONFIG={
+            'john': {'password': 'AA2QILwUzOYBM'}
+        }):
             response = c.post(reverse('login'),
                               {"username": 'john',
                                "password": 's3cr3t'})
@@ -72,7 +74,7 @@ class TestAuthenticationViews(TestCase):
     def test_auth_get(self, r):
         c = Client()
         fake_login(c, 'blah')
-        with self.settings(CONFIG={'john': {'password': 's3cr3t'}}):
+        with self.settings(CONFIG={'john': {'password': '$1$....'}}):
             response = c.get('/')
             # there's not much to test against, entire response will be mock
             # data
@@ -82,7 +84,7 @@ class TestAuthenticationViews(TestCase):
     def test_auth_post(self, r):
         c = Client()
         fake_login(c, 'blah')
-        with self.settings(CONFIG={'john': {'password': 's3cr3t'}}):
+        with self.settings(CONFIG={'john': {'password': '$1$....'}}):
             response = c.post('/')
             self.assertNotEquals(response.status_code, 200)
             # there's not much to test against, entire response will be mock
@@ -94,7 +96,7 @@ class TestInjectView(TestCase):
     def test_normal(self):
         c = Client()
         fake_login(c, 'john')
-        with self.settings(CONFIG={'john': {'password': 's3cr3t'}}):
+        with self.settings(CONFIG={'john': {'password': '$1$....'}}):
             response = c.get(reverse('injectjs'))
         self.assertEquals(response.context.get('username'), 'john')
         self.assertEquals(response.context.get('logout'), reverse('logout'))
@@ -103,7 +105,7 @@ class TestInjectView(TestCase):
     def test_poweruser(self):
         c = Client()
         fake_login(c, 'john')
-        with self.settings(CONFIG={'john': {'password': 's3cr3t',
+        with self.settings(CONFIG={'john': {'password': '$1$....',
                                             'poweruser': True}}):
             response = c.get(reverse('injectjs'))
         self.assertEquals(response.context.get('username'), 'john')
@@ -117,7 +119,7 @@ class TestInjectView(TestCase):
                       status=200)
         c = Client()
         fake_login(c, 'john')
-        with self.settings(CONFIG={'john': {'password': 's3cr3t',
+        with self.settings(CONFIG={'john': {'password': '$1$....',
                                             'poweruser': True}}):
             response = c.get('/')
         self.assertInHTML('<script src="{0}"></script>'
@@ -134,7 +136,7 @@ class TestKibanaIndexAccess(TestCase):
                       status=200, content_type="application/json")
         c = Client()
         fake_login(c, 'john')
-        with self.settings(CONFIG={'john': {'password': 's3cr3t',
+        with self.settings(CONFIG={'john': {'password': '$1$....',
                                             'poweruser': True}}):
             response = c.get('/config')
 
@@ -156,7 +158,7 @@ class TestIndexAccess(TestCase):
         if data:
             self.assertEquals(params, data)
 
-    @override_settings(CONFIG={'john': {'password': 's3cr3t'}})
+    @override_settings(CONFIG={'john': {'password': '$1$....'}})
     def test_kibana_proxy(self):
         """ a non-elastic request should go to kibana """
         path = 'bla/foo'
@@ -166,7 +168,7 @@ class TestIndexAccess(TestCase):
         res = get_full_url('bla/foo', request)
         self.assertURL(res, settings.KIBANA_UPSTREAM, '/' + path, data)
 
-    @override_settings(CONFIG={'john': {'password': 's3cr3t'}})
+    @override_settings(CONFIG={'john': {'password': '$1$....'}})
     def test_kibana_usermatch(self):
         """ A user can access his own kibana index which gets proxied
             directly to ES"""
@@ -176,7 +178,7 @@ class TestIndexAccess(TestCase):
         res = get_full_url(path, request)
         self.assertURL(res, settings.ES_UPSTREAM, '/.kibana-john')
 
-    @override_settings(CONFIG={'john': {'password': 's3cr3t'}})
+    @override_settings(CONFIG={'john': {'password': '$1$....'}})
     def test_kibana_usermismatch(self):
         """ A user cannot access any other kibana config index """
         path = 'elasticsearch/.kibana-jane'
@@ -184,7 +186,7 @@ class TestIndexAccess(TestCase):
         request.session = {'username': 'john'}
         self.assertRaises(Http404, lambda: get_full_url(path, request))
 
-    @override_settings(CONFIG={'john': {'password': 's3cr3t'}})
+    @override_settings(CONFIG={'john': {'password': '$1$....'}})
     def test_es_nodes(self):
         """ calls to /elasticsearch/_nodes go verbatim to Kibana """
         path = 'elasticsearch/_nodes'
@@ -193,7 +195,7 @@ class TestIndexAccess(TestCase):
         res = get_full_url(path, request)
         self.assertURL(res, settings.KIBANA_UPSTREAM, '/elasticsearch/_nodes')
 
-    @override_settings(CONFIG={'john': {'password': 's3cr3t'}})
+    @override_settings(CONFIG={'john': {'password': '$1$....'}})
     def test_es_root(self):
         """ calls to /elasticsearch/ go verbatim to Kibana"""
         path = 'elasticsearch/'
@@ -202,7 +204,7 @@ class TestIndexAccess(TestCase):
         res = get_full_url(path, request)
         self.assertURL(res, settings.KIBANA_UPSTREAM, '/elasticsearch/')
 
-    @override_settings(CONFIG={'john': {'password': 's3cr3t'}})
+    @override_settings(CONFIG={'john': {'password': '$1$....'}})
     def test_cluster_allowed_kibanaindex(self):
         """ /elasticsearch/_cluster only for allowed indexes """
         path = 'elasticsearch/_cluster/.kibana-john'
@@ -211,7 +213,7 @@ class TestIndexAccess(TestCase):
         res = get_full_url(path, request)
         self.assertURL(res, settings.KIBANA_UPSTREAM, '/' + path)
 
-    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+    @override_settings(CONFIG={'john': {'password': '$1$....',
                                         'indexes': ('logstash-john-*',)}})
     def test_cluster_allowed(self):
         """ /elasticsearch/_cluster only for allowed indexes """
@@ -221,7 +223,7 @@ class TestIndexAccess(TestCase):
         res = get_full_url(path, request)
         self.assertURL(res, settings.KIBANA_UPSTREAM, '/' + path)
 
-    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+    @override_settings(CONFIG={'john': {'password': '$1$....',
                                         'indexes': ('logstash-john-*',
                                                     'logstash-test-*')}})
     def test_elasticsearch_all(self):
@@ -234,7 +236,7 @@ class TestIndexAccess(TestCase):
         self.assertURL(res, settings.KIBANA_UPSTREAM,
                        '/elasticsearch/logstash-john-*,logstash-test-*/_all')
 
-    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+    @override_settings(CONFIG={'john': {'password': '$1$....',
                                         'indexes': ('logstash-john-*',
                                                     'logstash-test-*')}})
     def test_elasticsearch_query(self):
@@ -247,7 +249,7 @@ class TestIndexAccess(TestCase):
         self.assertURL(res, settings.KIBANA_UPSTREAM,
                        '/elasticsearch/logstash-john-*,logstash-test-*/_query')
 
-    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+    @override_settings(CONFIG={'john': {'password': '$1$....',
                                         'indexes': ('logstash-john-*',)}})
     def test_mget_allowed(self):
         """ test _mget which takes indexes in the body """
@@ -260,7 +262,7 @@ class TestIndexAccess(TestCase):
         res = get_full_url(path, request)
         self.assertURL(res, settings.KIBANA_UPSTREAM, '/' + path)
 
-    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+    @override_settings(CONFIG={'john': {'password': '$1$....',
                                         'indexes': ('logstash-john-*',)}})
     def test_mget_disallowed(self):
         """ test _mget which takes indexes in the body """
@@ -272,7 +274,7 @@ class TestIndexAccess(TestCase):
         request.session = {'username': 'john'}
         self.assertRaises(Http404, lambda: get_full_url(path, request))
 
-    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+    @override_settings(CONFIG={'john': {'password': '$1$....',
                                         'indexes': ('logstash-john-*',)}})
     def test_mget_extended_allowed(self):
         """ test _mget which takes indexes in the body """
@@ -285,7 +287,7 @@ class TestIndexAccess(TestCase):
         res = get_full_url(path, request)
         self.assertURL(res, settings.KIBANA_UPSTREAM, '/' + path)
 
-    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+    @override_settings(CONFIG={'john': {'password': '$1$....',
                                         'indexes': ('logstash-john-*',)}})
     def test_mget_extended_disallowed(self):
         """ test _mget which takes indexes in the body """
@@ -297,7 +299,7 @@ class TestIndexAccess(TestCase):
         request.session = {'username': 'john'}
         self.assertRaises(Http404, lambda: get_full_url(path, request))
 
-    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+    @override_settings(CONFIG={'john': {'password': '$1$....',
                                         'indexes': ('logstash-john-*',)}})
     def test_msearch_allowed(self):
         """ test _msearch which takes indexes in the body """
@@ -312,7 +314,7 @@ class TestIndexAccess(TestCase):
         res = get_full_url(path, request)
         self.assertURL(res, settings.KIBANA_UPSTREAM, '/' + path)
 
-    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+    @override_settings(CONFIG={'john': {'password': '$1$....',
                                         'indexes': ('logstash-john-*',)}})
     def test_msearch_disallowed(self):
         """ test _msearch which takes indexes in the body """
@@ -327,7 +329,7 @@ class TestIndexAccess(TestCase):
         request.session = {'username': 'john'}
         self.assertRaises(Http404, lambda: get_full_url(path, request))
 
-    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+    @override_settings(CONFIG={'john': {'password': '$1$....',
                                         'indexes': ('logstash-john-*',)}})
     def test_msearch_extended_allowed(self):
         """ test _msearch which takes indexes in the body with
@@ -343,7 +345,7 @@ class TestIndexAccess(TestCase):
         res = get_full_url(path, request)
         self.assertURL(res, settings.KIBANA_UPSTREAM, '/' + path)
 
-    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+    @override_settings(CONFIG={'john': {'password': '$1$....',
                                         'indexes': ('logstash-john-*',)}})
     def test_msearch_extended_disallowed(self):
         """ test _msearch which takes indexes in the body with
@@ -359,7 +361,7 @@ class TestIndexAccess(TestCase):
         request.session = {'username': 'john'}
         self.assertRaises(Http404, lambda: get_full_url(path, request))
 
-    @override_settings(CONFIG={'john': {'password': 's3cr3t',
+    @override_settings(CONFIG={'john': {'password': '$1$....',
                                         'indexes': ('logstash-john-*',)}})
     def test_index_direct_allowed(self):
         """ just /elasticsearch/someindex,someotherindex """
@@ -369,7 +371,7 @@ class TestIndexAccess(TestCase):
         res = get_full_url(path, request)
         self.assertURL(res, settings.KIBANA_UPSTREAM, '/' + path)
 
-    @override_settings(CONFIG={'john': {'passVword': 's3cr3t',
+    @override_settings(CONFIG={'john': {'passVword': '$1$....',
                                         'indexes': ('logstash-john-*',)}})
     def test_index_direct_disallowed(self):
         """ just /elasticsearch/someindex,someotherindex """
@@ -380,7 +382,7 @@ class TestIndexAccess(TestCase):
 
 
 class TestIndexCreateion(TestCase):
-    @override_settings(CONFIG={'john': {'passVword': 's3cr3t',
+    @override_settings(CONFIG={'john': {'passVword': '$1$....',
                                         'indexes': ('logstash-john-*',)}})
     @patch("buckler.views.create_index_patterns")
     def test_trigger(self, cip):
