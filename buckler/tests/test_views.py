@@ -1,4 +1,3 @@
-import crypt
 import responses
 import json
 import urlparse
