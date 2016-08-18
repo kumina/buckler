@@ -1,3 +1,4 @@
+import crypt
 import requests
 import fnmatch
 from urlparse import urljoin
@@ -297,17 +298,17 @@ class LoginView(View):
         username = request.POST.get('username')
         password = request.POST.get('password')
 
-        if username in settings.CONFIG and \
-           settings.CONFIG[username]['password'] == password:
-            request.session['username'] = username
-            open_indexes(settings.CONFIG[username])
-            # indexes may not be ready at this point yet. Alternatively,
-            # redirect to a url that checks the state of indexes and
-            # keeps redirecting, possibly with a delay in the served html
-            return redirect('/')  # redirect sw that checks + opens indexes?
-        else:
-            return render(request, "buckler/login.html",
-                          {'error': 'Invalid username or password'})
+        if username in settings.CONFIG:
+            crypt_hash = settings.CONFIG[username]['password']
+            if crypt.crypt(password, crypt_hash) == crypt_hash:
+                request.session['username'] = username
+                open_indexes(settings.CONFIG[username])
+                # indexes may not be ready at this point yet. Alternatively,
+                # redirect to a url that checks the state of indexes and
+                # keeps redirecting, possibly with a delay in the served html
+                return redirect('/')
+        return render(request, "buckler/login.html",
+                      {'error': 'Invalid username or password'})
 
 
 class InjectJSView(View):

@@ -34,19 +34,20 @@ KIBANA_UPSTREAM - the url where Kibana can be found.
 ES_UPSTREAM - the url where Elastic Search can be found.
    E.g. `http://localhost:9200/` - no trailing slash!
 
-CONFIG - A dictionary keyed by usernames that have access. Each value consists
-  of a dictionary holding a password, the indexes the user has access to (as a
-  tuple) and optionally a 'poweruser' flag. For example:
+CONFIG - A dictionary keyed by usernames that have access. Each value
+  consists of a dictionary holding hashed password (using
+  `crypt.crypt()`), the indexes the user has access to (as a tuple) and
+  optionally a 'poweruser' flag. For example:
 
 ```
 CONFIG = {
 	'john': {
-		'password': 's3cr3t',
+		'password': '$6$....',
 		'indexes': ('logstash-john-\*', 'logstash-company-\*'),
 		'poweruser': True
 	},
 	'demo': {
-		'password': 'demo',
+		'password': '$6$....',
 	     	'indexes': ('logstash-demo-\*',)
 	}
 }
