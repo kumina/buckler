@@ -269,7 +269,8 @@ def create_index_patterns(url, username, config, request):
     # url = elasticsearch/.kibana-test1/config/4.1.1
 
     indexes = config.get('autoindexes', config['indexes'])
-    indexbase = settings.ES_UPSTREAM + '/.kibana-{0}'.format(username)
+    indexbase = '{}/{}-{}'.format(settings.ES_UPSTREAM,
+                                  settings.ES_USERDATA_PREFIX, username)
 
     for index in indexes:
         requests.put(indexbase + '/_mapping/index-pattern', data=json.dumps(
@@ -350,7 +351,7 @@ def get_full_url(url, request):
     def index_allowed(index):
         """ Verify if access to the index is allowed by
             any of the config indexes """
-        if index == ".kibana-" + username:
+        if index == '{}-{}'.format(settings.ES_USERDATA_PREFIX, username):
             return True
 
         for allowed_index in config.get('indexes', []):
@@ -398,7 +399,7 @@ def get_full_url(url, request):
         elif parts[1] == '_cluster':
             check_explicit_index(parts[-1])
         # /elasticsearch/.kibana-someuser
-        elif parts[1].startswith(".kibana"):
+        elif parts[1].startswith(settings.ES_USERDATA_PREFIX):
             # bypass kibana, go directly to ES since kibana will not allow
             # us to access any other .kibana index than the configured one
             index_allowed_or_404(parts[1])
@@ -449,7 +450,8 @@ class BucklerView(View):
 
         if url == "config":
             data_decode = json.loads(data)
-            data_decode['kibana_index'] = ".kibana-{0}".format(username)
+            data_decode['kibana_index'] = '{}-{}'.format(
+                settings.ES_USERDATA_PREFIX, username)
             data = json.dumps(data_decode)
 
         if url == '':  # / requested: inject javascript
@@ -468,8 +470,9 @@ class BucklerView(View):
 
         res = requests.post(request_url, data=request.body)
 
-        if url.startswith("elasticsearch/.kibana-{0}/config/"
-                          .format(username)) and res.status_code == 201:
+        if (url.startswith('elasticsearch/{}-{}/config/'
+                           .format(settings.ES_USERDATA_PREFIX, username)) and
+            res.status_code == 201):
             create_index_patterns(url, username, config, request)
 
         return HttpResponse(res.content, status=res.status_code,

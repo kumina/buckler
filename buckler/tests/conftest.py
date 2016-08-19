@@ -31,6 +31,7 @@ def pytest_configure():
             'buckler',
         ),
         ES_UPSTREAM='http://testing.test:123',
+        ES_USERDATA_PREFIX='.kibana',
         KIBANA_UPSTREAM='http://testing.test:124'
     )
 

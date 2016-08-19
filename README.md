@@ -34,6 +34,9 @@ KIBANA_UPSTREAM - the url where Kibana can be found.
 ES_UPSTREAM - the url where Elastic Search can be found.
    E.g. `http://localhost:9200/` - no trailing slash!
 
+ES_USERDATA_PREFIX - the Elastic Search index prefix for storing user data.
+   E.g. `.kibana`
+
 CONFIG - A dictionary keyed by usernames that have access. Each value
   consists of a dictionary holding hashed password (using
   `crypt.crypt()`), the indexes the user has access to (as a tuple) and
