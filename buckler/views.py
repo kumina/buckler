@@ -21,6 +21,15 @@ def get_session(request):
     return None, None
 
 
+def require_authentication(impl):
+    """Decorator for redirecting to login when unauthenticated."""
+    def wrapper(self, request, url, *args, **kwargs):
+        if not get_session(request)[0]:
+            return redirect('login')
+        return impl(self, request, url, *args, **kwargs)
+    return wrapper
+
+
 def open_indexes(config):
     indexes = ",".join(config.get('indexes', []))
     requests.post(urljoin(settings.ES_UPSTREAM, indexes + '/_open'))
@@ -428,12 +437,7 @@ def get_full_url(url, request):
 
 class BucklerView(View):
 
-    def dispatch(self, *args, **kwargs):
-        if not get_session(self.request)[0]:
-            return redirect('login')
-
-        return super(BucklerView, self).dispatch(*args, **kwargs)
-
+    @require_authentication
     def get(self, request, url, *args, **kwargs):
         username, config = get_session(request)
 
@@ -456,6 +460,7 @@ class BucklerView(View):
         return HttpResponse(data, status=res.status_code,
                             content_type=res.headers['content-type'])
 
+    @require_authentication
     def post(self, request, url, *args, **kwargs):
         username, config = get_session(request)
 
@@ -470,9 +475,11 @@ class BucklerView(View):
         return HttpResponse(res.content, status=res.status_code,
                             content_type=res.headers['content-type'])
 
+    @require_authentication
     def head(self, request, url, *args, **kwargs):
         return self.get(request, url, *args, **kwargs)
 
+    @require_authentication
     def delete(self, request, url, *args, **kwargs):
         request_url = get_full_url(url, request)
 
@@ -480,6 +487,7 @@ class BucklerView(View):
         return HttpResponse(res.content, status=res.status_code,
                             content_type=res.headers['content-type'])
 
+    @require_authentication
     def put(self, request, url, *args, **kwargs):
         request_url = get_full_url(url, request)
 
