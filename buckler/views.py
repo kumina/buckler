@@ -13,6 +13,18 @@ from django.core.urlresolvers import reverse
 from django.conf import settings
 
 
+def extract_headers(request):
+    """Extracts custom HTTP headers from a Django request object.
+
+    If we want to forward HTTP requests to Kibana, we need to ensure that
+    custom HTTP headers are preserved. Kibana uses this for CSRF protection."""
+    headers = {}
+    for key, value in request.META.iteritems():
+        if key.startswith('HTTP_'):
+            headers[key[5:].replace('_', '-')] = value
+    return headers
+
+
 def get_session(request):
     username = request.session.get('username')
 
@@ -282,22 +294,27 @@ def create_index_patterns(url, username, config, request):
                                          "fieldFormatMap": {"type": "string"}
                                          }
                                         }
-                      }))
+                      }),
+                      headers=extract_headers(request))
         data = {'title': index, 'timeFieldName': '@timestamp'}
         if index.startswith('[') and ']' in index:
             data['intervalName'] = "days"
         requests.post(indexbase + '/index-pattern/{0}?op_type=create'
                       .format(index),
-                      data=json.dumps(data))
-        requests.post(indexbase + '/_refresh')
+                      data=json.dumps(data),
+                      headers=extract_headers(request))
+        requests.post(indexbase + '/_refresh',
+                      headers=extract_headers(request))
         data['fields'] = field_config()
 
         requests.post(indexbase + '/index-pattern/{0}'.format(index),
-                      data=json.dumps(data))
+                      data=json.dumps(data),
+                      headers=extract_headers(request))
 
     orig_conf['defaultIndex'] = indexes[0]
     requests.post(indexbase + '/config/{0}/_update'.format(version),
-                  data=json.dumps({"doc": orig_conf}))
+                  data=json.dumps({'doc': orig_conf}),
+                  headers=extract_headers(request))
 
 
 class LoginView(View):
@@ -444,7 +461,7 @@ class BucklerView(View):
 
         request_url = get_full_url(url, request)
 
-        res = requests.get(request_url)
+        res = requests.get(request_url, headers=extract_headers(request))
 
         data = res.content
 
@@ -468,7 +485,8 @@ class BucklerView(View):
 
         request_url = get_full_url(url, request)
 
-        res = requests.post(request_url, data=request.body)
+        res = requests.post(request_url, data=request.body,
+                            headers=extract_headers(request))
 
         if (url.startswith('elasticsearch/{}-{}/config/'
                            .format(settings.ES_USERDATA_PREFIX, username)) and
@@ -486,7 +504,8 @@ class BucklerView(View):
     def delete(self, request, url, *args, **kwargs):
         request_url = get_full_url(url, request)
 
-        res = requests.delete(request_url, data=request.body)
+        res = requests.delete(request_url, data=request.body,
+                              headers=extract_headers(request))
         return HttpResponse(res.content, status=res.status_code,
                             content_type=res.headers['content-type'])
 
@@ -494,6 +513,7 @@ class BucklerView(View):
     def put(self, request, url, *args, **kwargs):
         request_url = get_full_url(url, request)
 
-        res = requests.put(request_url, data=request.body)
+        res = requests.put(request_url, data=request.body,
+                           headers=extract_headers(request))
         return HttpResponse(res.content, status=res.status_code,
                             content_type=res.headers['content-type'])
