@@ -30,7 +30,7 @@
       {% if error %}
       <div class="alert alert-danger">{{error}}</div>
       {% endif %}
-      <form class="form-signin" method="POST" action="{% url "login" %}">
+      <form class="form-signin" method="POST" action="{% url login %}">
         {% csrf_token %}
         <h2 class="form-signin-heading">Please sign in</h2>
         <label for="inputUsername" class="sr-only">Email address</label>
