@@ -1,3 +1,4 @@
 *.pyc
 /buckler.sqlite
+/buckler/settings.py
 /dispatch.wsgi
