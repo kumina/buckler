@@ -2,3 +2,4 @@
 /buckler.sqlite
 /buckler/settings.py
 /dispatch.wsgi
+/kibana-*
