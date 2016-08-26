@@ -25,7 +25,4 @@
         }
     }
     poll_jquery_and_node();
-    {% if not poweruser %}
-    poll_jquery_and_check_settings();
-    {% endif %}
 })();

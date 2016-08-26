@@ -100,17 +100,6 @@ class TestInjectView(TestCase):
             response = c.get(reverse('injectjs'))
         self.assertEquals(response.context.get('username'), 'john')
         self.assertEquals(response.context.get('logout'), reverse('logout'))
-        self.assertFalse(response.context.get('poweruser'))
-
-    def test_poweruser(self):
-        c = Client()
-        fake_login(c, 'john')
-        with self.settings(CONFIG={'john': {'password': '$1$....',
-                                            'poweruser': True}}):
-            response = c.get(reverse('injectjs'))
-        self.assertEquals(response.context.get('username'), 'john')
-        self.assertEquals(response.context.get('logout'), reverse('logout'))
-        self.assertTrue(response.context.get('poweruser'))
 
     @responses.activate
     def test_injections(self):
@@ -119,8 +108,7 @@ class TestInjectView(TestCase):
                       status=200)
         c = Client()
         fake_login(c, 'john')
-        with self.settings(CONFIG={'john': {'password': '$1$....',
-                                            'poweruser': True}}):
+        with self.settings(CONFIG={'john': {'password': '$1$....'}}):
             response = c.get('/')
         self.assertInHTML('<script src="{0}"></script>'
                         .format(reverse('injectjs')), response.content)
@@ -136,8 +124,7 @@ class TestKibanaIndexAccess(TestCase):
                       status=200, content_type="application/json")
         c = Client()
         fake_login(c, 'john')
-        with self.settings(CONFIG={'john': {'password': '$1$....',
-                                            'poweruser': True}}):
+        with self.settings(CONFIG={'john': {'password': '$1$....'}}):
             response = c.get('/config')
 
         data = json.loads(response.content)
@@ -391,7 +378,8 @@ class TestIndexCreateion(TestCase):
         fake_login(c, 'john')
         with patch("requests.post", return_value=Mock(status_code=201,
                     content='',
-                    headers={'content-type': 'application/json'})):
+                    headers={'content-type': 'application/json'},
+                    META={})):
             c.post('/elasticsearch/.kibana-john/config/')
 
         self.assertEquals(cip.call_count, 1)
@@ -399,7 +387,7 @@ class TestIndexCreateion(TestCase):
     @responses.activate
     def test_indexes_created(self):
         from ..views import create_index_patterns
-        request = Mock(body=json.dumps({}))
+        request = Mock(body=json.dumps({}), META={})
         base = settings.ES_UPSTREAM + '/.kibana-john/'
 
         responses.add(responses.PUT,
@@ -433,7 +421,7 @@ class TestIndexCreateion(TestCase):
     @responses.activate
     def test_timestamp_indexes_created(self):
         from ..views import create_index_patterns
-        request = Mock(body=json.dumps({}))
+        request = Mock(body=json.dumps({}), META={})
         base = settings.ES_UPSTREAM + '/.kibana-john/'
 
         responses.add(responses.PUT,

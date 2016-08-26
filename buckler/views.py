@@ -341,8 +341,7 @@ class LoginView(View):
 class InjectJSView(View):
     def get(self, request, *args, **kwargs):
         username, config = get_session(request)
-        ctx = dict(username=username, logout=reverse("logout"),
-                   poweruser=config.get('poweruser'))
+        ctx = {'username': username, 'logout': reverse('logout')}
 
         return render(request, 'buckler/inject.js', ctx,
                       content_type="application/javascript")
