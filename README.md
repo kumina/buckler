@@ -39,18 +39,20 @@ ES_USERDATA_PREFIX - the Elastic Search index prefix for storing user data.
 
 CONFIG - A dictionary keyed by usernames that have access. Each value
   consists of a dictionary holding hashed password (using
-  `crypt.crypt()`) and the indexes the user has access to (as a tuple).
-  For example:
+  `crypt.crypt()`), the indexes the user has access to (as a tuple), and
+  the index used to store the user's preferences. For example:
 
 ```
 CONFIG = {
 	'john': {
 		'password': '$6$....',
 		'indexes': ('logstash-john-\*', 'logstash-company-\*'),
+		'userdata_index': 'john',
 	},
 	'demo': {
 		'password': '$6$....',
 		'indexes': ('logstash-demo-\*',)
+		'userdata_index': 'demo',
 	}
 }
 ```
