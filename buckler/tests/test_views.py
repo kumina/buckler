@@ -56,6 +56,13 @@ class TestAuthenticationViews(TestCase):
     def test_logout(self):
         c = Client()
         fake_login(c, 'blah')
+
+        # Log out once.
+        response = c.get(reverse('logout'))
+        self.assertEquals(c.session.get('username', 'empty'), 'empty')
+        self.assertEquals(response.status_code, 302)
+
+        # Log out twice. We should still be logged out.
         response = c.get(reverse('logout'))
         self.assertEquals(c.session.get('username', 'empty'), 'empty')
         self.assertEquals(response.status_code, 302)

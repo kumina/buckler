@@ -354,7 +354,7 @@ class InjectJSView(View):
 
 class LogoutView(View):
     def get(self, request, *args, **kwargs):
-        del request.session['username']
+        request.session.clear()
         return redirect('/')
 
 
