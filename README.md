@@ -18,26 +18,23 @@ when access configuration indexes).
 Buckler provides a very simple authentication mechanism. It does not define any
 models.
 
-Buckler will inject some additional javascript code to add a logout button and
+Buckler will inject some additional JavaScript code to add a logout button and
 (optionally) hide certain configuration options.
 
-Lastly, Buckler will attempt to setup an initial index based on the
+Lastly, Buckler will attempt to set up an initial index based on the
 configuration after first login.
 
 ## Configuration
 
-Buckler expects the following SETTINGS:
+Buckler expects the following Django applications ettings:
 
-KIBANA_UPSTREAM - the url where Kibana can be found.
-   E.g. `http://localhost:5601` - no trailing slash!
-
-ES_UPSTREAM - the url where Elasticsearch can be found.
-   E.g. `http://localhost:9200/` - no trailing slash!
-
-ES_USERDATA_PREFIX - the Elasticsearch index prefix for storing user data.
-   E.g. `.kibana`
-
-CONFIG - A dictionary keyed by usernames that have access. Each value
+- `KIBANA_UPSTREAM`: The URL where Kibana can be found.
+  E.g. `http://localhost:5601` - no trailing slash!
+- `ES_UPSTREAM`: The URL where Elasticsearch can be found.
+  E.g. `http://localhost:9200/` - no trailing slash!
+- `ES_USERDATA_PREFIX`: the Elasticsearch index prefix for storing user
+  data. E.g. `.kibana`
+- `CONFIG`: A dictionary keyed by usernames that have access. Each value
   consists of a dictionary holding hashed password (using
   `crypt.crypt()`), the indexes the user has access to (as a tuple), and
   the index used to store the user's preferences. For example:
@@ -57,7 +54,7 @@ CONFIG = {
 }
 ```
 
-Buckler can (and will) setup initial indexes based on the 'indexes' property.
+Buckler can (and will) set up initial indexes based on the 'indexes' property.
 However, if you use time stamp based indexes (e.g. [logstash-]YYYY.MM.DD),
 set these explicitly as 'autoindexes' if you want these to be created instead.
 For example:
