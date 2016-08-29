@@ -31,7 +31,7 @@ Buckler expects the following Django applications ettings:
 - `KIBANA_UPSTREAM`: The URL where Kibana can be found.
   E.g. `http://localhost:5601` - no trailing slash!
 - `ES_UPSTREAM`: The URL where Elasticsearch can be found.
-  E.g. `http://localhost:9200/` - no trailing slash!
+  E.g. `http://localhost:9200` - no trailing slash!
 - `ES_USERDATA_PREFIX`: the Elasticsearch index prefix for storing user
   data. E.g. `.kibana`
 - `CONFIG`: A dictionary keyed by usernames that have access. Each value
