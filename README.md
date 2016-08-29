@@ -1,6 +1,6 @@
 # Buckler
 
-Buckler is an authentication frontend for ELK (ElasticSearch, Logstash,
+Buckler is an authentication frontend for ELK (Elasticsearch, Logstash,
 Kibana).  It behaves like a proxy, allowing only access to those indexes the
 logged in user.
 
@@ -12,7 +12,7 @@ available in the kumina/buckler-project repository at Github.
 
 Buckler provides a view that serves as the main entry point for accessing
 Kibana.  All requests are forwarded to either Kibana or directly to
-ElastiSearch (in cases where Kibana will not properly handle the request, e.g.
+Elasticsearch (in cases where Kibana will not properly handle the request, e.g.
 when access configuration indexes).
 
 Buckler provides a very simple authentication mechanism. It does not define any
@@ -31,10 +31,10 @@ Buckler expects the following SETTINGS:
 KIBANA_UPSTREAM - the url where Kibana can be found.
    E.g. `http://localhost:5601` - no trailing slash!
 
-ES_UPSTREAM - the url where Elastic Search can be found.
+ES_UPSTREAM - the url where Elasticsearch can be found.
    E.g. `http://localhost:9200/` - no trailing slash!
 
-ES_USERDATA_PREFIX - the Elastic Search index prefix for storing user data.
+ES_USERDATA_PREFIX - the Elasticsearch index prefix for storing user data.
    E.g. `.kibana`
 
 CONFIG - A dictionary keyed by usernames that have access. Each value
