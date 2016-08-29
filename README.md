@@ -1,4 +1,4 @@
-# Buckler: a proxy for adding authentication to Kibana
+# Buckler: a proxy for adding authentication and authorization to Kibana
 
 Buckler is an authentication frontend for ELK (Elasticsearch, Logstash,
 Kibana).  It behaves like a proxy, allowing only access to those indexes the
