@@ -68,7 +68,7 @@ Currently, only 'daily' interval is supported!
 At this point, Buckler will only work with Kibana 4.1.x. It will not work with
 newer versions (e.g. 4.3) since the protocol has changed significantly.
 
-Buckler has been tested with Django 1.8 on python 2.7.
+Buckler has been tested with Django 1.4 and 1.8 on Python 2.7.
 
 ## Running tests
 
