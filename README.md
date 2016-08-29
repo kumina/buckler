@@ -84,3 +84,12 @@ bin/tox
 
 Buckler was initially developed by Ivo van der Wijk (m3r consultancy B.V.)
 under commission from Kumina b.v.
+
+Kumina b.v. offers managed operations for companies that focus on
+creating and delivering online based applications, solutions and
+services. With highly scalable virtual private servers we provide fully
+customized robust IT environments for business critical applications.
+Our managed operations include advanced 24/7 monitoring, trend analysis,
+updates and patches for your entire infrastructure right up to your own
+applications, fully managed security measures and unlimited support
+hours. Find out more at [kumina.nl](https://kumina.nl/).
