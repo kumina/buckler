@@ -8,7 +8,7 @@ logged in user.
 
 Buckler is implemented as a Django app. You will need a Django project to
 configure and run the application. A sample (buildout based) Django project is
-available in the kumina/buckler-project repository at Github.
+available in [the `buckler/buckler-project` repository on Kumina's GitLab](https://git.kumina.nl/buckler/buckler-project).
 
 ## How does it work?
 
