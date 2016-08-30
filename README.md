@@ -28,7 +28,7 @@ configuration after first login.
 
 ## Configuration
 
-Buckler expects the following Django applications ettings:
+Buckler expects the following Django application settings:
 
 - `KIBANA_UPSTREAM`: The URL where Kibana can be found.
   E.g. `http://localhost:5601` - no trailing slash!
